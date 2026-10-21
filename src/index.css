@@ -126,6 +126,10 @@ button,
   outline: 2px solid hsl(var(--accent));
   outline-offset: 2px;
 }
+/* שדה בתוך מסגרת שמסמנת את עצמה (focus-within) - בלי מסגרת כפולה */
+.bare:focus-visible {
+  outline: none;
+}
 
 ::selection {
   background: hsl(var(--accent) / 0.35);

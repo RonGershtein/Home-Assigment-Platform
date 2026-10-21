@@ -6,12 +6,14 @@ import Sheet from "../components/Sheet";
 import { CheckCircle, Empty, SectionTitle, Skeletons, useLeaving } from "../components/ui";
 import { useTable } from "../hooks/useTable";
 import { SHOP_CATEGORIES, shopCat } from "../lib/catalog";
-import { COMMON_GROCERIES, matchGrocery } from "../lib/groceries";
+import { COMMON_GROCERIES, GROCERIES, matchGrocery } from "../lib/groceries";
 
 // אייקון לפריט: מהקטלוג, ואם לא נמצא - של הקטגוריה
 const iconOf = (name, category) => matchGrocery(name)?.icon ?? shopCat(category).icon;
 
 const norm = (s) => s.trim().replace(/\s+/g, " ");
+const FINALS = { ך: "כ", ם: "מ", ן: "נ", ף: "פ", ץ: "צ" };
+const foldFinals = (s) => s.replace(/[ךםןףץ]/g, (c) => FINALS[c]);
 
 export default function Shopping() {
   const items = useTable("shopping_items");
@@ -55,9 +57,24 @@ export default function Shopping() {
     const q = norm(text);
     if (q.length < 1) return [];
     const onList = new Set(toBuy.map((i) => i.item_name));
-    return memory.rows
-      .filter((m) => m.item_name.includes(q) && m.item_name !== q && !onList.has(m.item_name))
-      .slice(0, 6);
+    // קודם מה שמתחיל במה שהוקלד, אחר כך מילה שמתחילה בו, ואחר כך מכיל. ההיסטוריה שלכם לפני הקטלוג
+    // אותיות סופיות מקופלות: "מלפפון" הוא תחילת "מלפפונים"
+    const fq = foldFinals(q);
+    const rank = (name) => {
+      const n = foldFinals(name);
+      return n.startsWith(fq) ? 0 : n.split(" ").some((w) => w.startsWith(fq)) ? 1 : n.includes(fq) ? 2 : -1;
+    };
+    const pool = [
+      ...memory.rows.map((m) => ({ name: m.item_name, category: m.category, mine: 0 })),
+      ...GROCERIES.map((g) => ({ name: g.name, category: g.category, mine: 1 })),
+    ];
+    const seen = new Set([q]);
+    return pool
+      .map((p) => ({ ...p, r: rank(p.name) }))
+      .filter((p) => p.r >= 0 && !onList.has(p.name))
+      .sort((a, b) => a.r - b.r || a.mine - b.mine || a.name.length - b.name.length)
+      .filter((p) => !seen.has(p.name) && seen.add(p.name))
+      .slice(0, 8);
   }, [text, memory.rows, toBuy]);
 
   async function add(name = text, category = guess) {
@@ -108,7 +125,7 @@ export default function Shopping() {
           add();
         }}
       >
-        <div className="card flex items-center gap-1.5 p-1.5 shadow-float/0">
+        <div className="card flex items-center gap-1.5 p-1.5 transition-shadow duration-150 focus-within:shadow-[inset_0_0_0_2px_hsl(var(--accent))]">
           <button
             type="button"
             className="press no-select shrink-0 h-11 ps-2.5 pe-2 rounded-2xl bg-raised flex items-center gap-1 text-[14px]"
@@ -120,7 +137,7 @@ export default function Shopping() {
           </button>
           <input
             ref={input}
-            className="flex-1 min-w-0 bg-transparent outline-none px-2 h-11 placeholder:text-muted/80"
+            className="bare flex-1 min-w-0 bg-transparent outline-none px-2 h-11 placeholder:text-muted/80"
             value={text}
             onChange={(e) => {
               setText(e.target.value);
@@ -137,8 +154,9 @@ export default function Shopping() {
         {suggestions.length > 0 && (
           <div className="hscroll mt-2 -mx-4 px-4">
             {suggestions.map((s) => (
-              <button key={s.item_name} type="button" className="chip bg-card" onClick={() => add(s.item_name, s.category)}>
-                {iconOf(s.item_name, s.category)} {s.item_name}
+              <button key={s.name} type="button" className="chip bg-card" onClick={() => add(s.name, s.category)}>
+                <span className="text-[17px] leading-none">{iconOf(s.name, s.category)}</span>
+                {s.name}
               </button>
             ))}
           </div>
