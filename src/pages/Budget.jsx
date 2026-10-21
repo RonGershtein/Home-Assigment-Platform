@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Repeat, Settings2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Coins, Plus, Receipt, Repeat, Settings2 } from "lucide-react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { toast } from "sonner";
 import { BackButton, Page } from "../components/Shell";
@@ -107,7 +107,7 @@ export default function Budget() {
 
       <div className="hero p-5">
         <p className="text-[13px] text-muted">{net >= 0 ? "נשאר החודש" : "חריגה החודש"}</p>
-        <p className={`num text-[40px] leading-tight font-bold tracking-tight ${net < 0 ? "text-crit" : ""}`}>{money(Math.round(net))}</p>
+        <p className={`num text-[52px] leading-[1.05] font-bold tracking-[-0.03em] ${net < 0 ? "text-crit" : ""}`}>{money(Math.round(net))}</p>
         <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t">
           <button type="button" className="press text-start" onClick={() => setTab("income")}>
             <p className="text-[12px] text-muted">הכנסות</p>
@@ -168,7 +168,7 @@ export default function Budget() {
 
           <SectionTitle>לאן הלך הכסף</SectionTitle>
           {byCategory.length === 0 ? (
-            <Empty icon="🧾" title="אין הוצאות בחודש הזה" text="מוסיפים הוצאה בכפתור למטה." />
+            <Empty icon={<Receipt size={28} strokeWidth={1.8} />} title="אין הוצאות בחודש הזה" text="מוסיפים הוצאה בכפתור למטה." />
           ) : (
             <ul className="card divide-y overflow-hidden">
               {byCategory.map((c) => {
@@ -195,7 +195,7 @@ export default function Budget() {
           )}
         </>
       ) : list.length === 0 ? (
-        <Empty icon={tab === "income" ? "💰" : "🧾"} title={tab === "income" ? "אין הכנסות בחודש הזה" : "אין הוצאות בחודש הזה"} />
+        <Empty icon={tab === "income" ? <Coins size={28} strokeWidth={1.8} /> : <Receipt size={28} strokeWidth={1.8} />} title={tab === "income" ? "אין הכנסות בחודש הזה" : "אין הוצאות בחודש הזה"} />
       ) : (
         <ul className="card divide-y overflow-hidden mt-4">
           {list.map((t) => {

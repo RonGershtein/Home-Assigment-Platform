@@ -6,7 +6,7 @@ export function Segmented({ value, onChange, options, className = "" }) {
   return (
     <div className={`relative grid bg-raised rounded-full p-1 no-select ${className}`} style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }} role="tablist">
       <div
-        className="absolute top-1 bottom-1 rounded-full bg-card dark:bg-hover shadow-sm transition-transform duration-[260ms] ease-[var(--ease-in-out)]"
+        className="absolute top-1 bottom-1 rounded-full bg-card dark:bg-hover transition-transform duration-[260ms] ease-[var(--ease-in-out)]"
         style={{ width: `calc((100% - 8px) / ${options.length})`, insetInlineStart: 4, transform: `translateX(${-i * 100}%)` }}
       />
       {options.map((o) => (
@@ -26,6 +26,31 @@ export function Segmented({ value, onChange, options, className = "" }) {
   );
 }
 
+// סימון עם השהיה קצרה לאנימציית היציאה (.leaving) לפני שהפריט עובר רשימה
+export function useLeaving(ms = 380) {
+  const [ids, setIds] = useState(() => new Set());
+  const timers = useRef([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const leave = (id, fn) => {
+    if (ids.has(id)) return;
+    setIds((s) => new Set(s).add(id));
+    timers.current.push(
+      setTimeout(async () => {
+        try {
+          await fn();
+        } finally {
+          setIds((s) => {
+            const n = new Set(s);
+            n.delete(id);
+            return n;
+          });
+        }
+      }, ms)
+    );
+  };
+  return [ids, leave];
+}
+
 export function CheckCircle({ on, onClick, label }) {
   return (
     <button type="button" className="check" data-on={on} onClick={onClick} aria-pressed={on} aria-label={label}>
@@ -37,7 +62,7 @@ export function CheckCircle({ on, onClick, label }) {
 export function Empty({ icon, title, text, action }) {
   return (
     <div className="rise flex flex-col items-center text-center py-14 px-6">
-      <div className="text-5xl mb-4">{icon}</div>
+      <div className="grid place-items-center w-16 h-16 rounded-full bg-card text-muted mb-4">{icon}</div>
       <p className="text-[17px] font-semibold">{title}</p>
       {text && <p className="text-muted text-[14px] mt-1 max-w-[30ch]">{text}</p>}
       {action && <div className="mt-5">{action}</div>}

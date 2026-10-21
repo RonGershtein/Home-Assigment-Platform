@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ExternalLink, Loader2, Plus } from "lucide-react";
+import { ChefHat, ExternalLink, Loader2, Plus } from "lucide-react";
 import { Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
 import { DeleteButton, Empty, Fab, Field, SearchField, Skeletons } from "../components/ui";
@@ -52,7 +52,7 @@ export default function Recipes() {
         {recipes.loading ? (
           <Skeletons n={4} h={88} />
         ) : list.length === 0 ? (
-          <Empty icon="🍳" title="אין מתכונים כאן" text="מדביקים לינק למתכון - הכותרת והתמונה נשלפות לבד." />
+          <Empty icon={<ChefHat size={28} strokeWidth={1.8} />} title="אין מתכונים כאן" text="מדביקים לינק למתכון - הכותרת והתמונה נשלפות לבד." />
         ) : (
           <ul className="grid grid-cols-2 gap-2 stagger">
             {list.map((r) => {

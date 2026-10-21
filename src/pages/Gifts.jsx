@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Download, Plus } from "lucide-react";
+import { Download, Gift, Plus, SearchX } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
@@ -67,7 +67,7 @@ export default function Gifts() {
     >
       <div className="hero p-5 mb-4">
         <p className="text-[13px] text-muted">סה"כ התקבל</p>
-        <p className="num text-[38px] leading-tight font-bold tracking-tight">{money(stats.total)}</p>
+        <p className="num text-[52px] leading-[1.05] font-bold tracking-[-0.03em]">{money(stats.total)}</p>
         <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t text-center">
           <Stat label="רשומות" value={fmtNum(gifts.rows.length)} />
           <Stat label="אורחים" value={fmtNum(stats.guests)} />
@@ -91,7 +91,7 @@ export default function Gifts() {
         {gifts.loading ? (
           <Skeletons n={8} h={60} />
         ) : list.length === 0 ? (
-          <Empty icon="💌" title={q ? "לא מצאתי" : "אין עדיין מתנות"} text={q ? `אין רשומה עם "${q}"` : "רושמים מי הביא כמה - ובאירוע הבא שלהם יודעים מה להחזיר."} />
+          <Empty icon={q ? <SearchX size={28} strokeWidth={1.8} /> : <Gift size={28} strokeWidth={1.8} />} title={q ? "לא מצאתי" : "אין עדיין מתנות"} text={q ? `אין רשומה עם "${q}"` : "רושמים מי הביא כמה - ובאירוע הבא שלהם יודעים מה להחזיר."} />
         ) : (
           <ul className="card overflow-hidden divide-y">
             {list.map((g) => (

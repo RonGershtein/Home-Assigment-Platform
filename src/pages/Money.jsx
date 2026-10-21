@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Landmark, Plus } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { BackButton, Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
@@ -72,7 +72,7 @@ export default function Money() {
 
       <div className="hero p-5">
         <p className="text-[13px] text-muted">שווי כולל</p>
-        <p className="num text-[40px] leading-tight font-bold tracking-tight">{money(total)}</p>
+        <p className="num text-[52px] leading-[1.05] font-bold tracking-[-0.03em]">{money(total)}</p>
         {delta != null && (
           <p className={`num text-[14px] font-medium mt-0.5 ${delta >= 0 ? "text-good" : "text-crit"}`}>
             {delta >= 0 ? "▲" : "▼"} {money(Math.abs(delta))} מהחודש הקודם
@@ -82,12 +82,6 @@ export default function Money() {
           <div className="h-[120px] -mx-2 mt-3" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={history} margin={{ top: 6, right: 8, left: 8, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="nw" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity={0.45} />
-                    <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
                 <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "var(--chart-tick)", fontSize: 11 }} interval="preserveStartEnd" />
                 <YAxis hide domain={["dataMin - 1000", "dataMax + 1000"]} />
                 <Tooltip
@@ -96,7 +90,7 @@ export default function Money() {
                   labelStyle={{ color: "hsl(var(--muted))" }}
                   formatter={(v) => [money(v), "שווי"]}
                 />
-                <Area type="monotone" dataKey="value" stroke="hsl(var(--accent))" strokeWidth={2.5} fill="url(#nw)" isAnimationActive={false} />
+                <Area type="monotone" dataKey="value" stroke="hsl(var(--accent))" strokeWidth={2.5} fill="hsl(var(--accent))" fillOpacity={0.12} isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -118,7 +112,7 @@ export default function Money() {
           <Skeletons n={3} />
         </div>
       ) : live.length === 0 ? (
-        <Empty icon="🏦" title="עוד אין חשבונות" text='מוסיפים עו"ש, קופות חיסכון ופיקדונות, ומעדכנים יתרה פעם בחודש.' />
+        <Empty icon={<Landmark size={28} strokeWidth={1.8} />} title="עוד אין חשבונות" text='מוסיפים עו"ש, קופות חיסכון ופיקדונות, ומעדכנים יתרה פעם בחודש.' />
       ) : (
         groups.map((g) => (
           <section key={g.key}>

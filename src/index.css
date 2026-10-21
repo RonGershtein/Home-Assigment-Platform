@@ -242,6 +242,19 @@ input[type="date"]::-webkit-date-and-time-value {
   }
 }
 
+/* פריט שסומן: קודם הווי מתמלא, ואז השורה דועכת וזזה הצידה - לא נעלמת מתחת לאגודל */
+.leaving {
+  opacity: 0;
+  transform: translateX(16px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 220ms var(--ease-out) 140ms, transform 280ms var(--ease-out) 140ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .leaving {
+    transform: none;
+  }
+}
+
 /* סימון וי: עיגול שמתמלא */
 .check {
   @apply press grid place-items-center w-7 h-7 rounded-full shrink-0;

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { CalendarDays, Plus } from "lucide-react";
+import { CalendarDays, CheckCheck, ListChecks, Plus } from "lucide-react";
 import { Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
-import { CheckCircle, DeleteButton, Empty, Fab, Field, Segmented, Skeletons } from "../components/ui";
+import { CheckCircle, DeleteButton, Empty, Fab, Field, Segmented, Skeletons, useLeaving } from "../components/ui";
 import { useTable } from "../hooks/useTable";
 import { daysUntil, fmtDate, relDays } from "../lib/format";
 
@@ -37,7 +37,8 @@ export default function Tasks() {
     });
   }, [view, size, open, done]);
 
-  const toggle = (t) => tasks.update(t.id, { is_done: !t.is_done, done_at: t.is_done ? null : new Date().toISOString() });
+  const [leavingIds, leave] = useLeaving();
+  const toggle = (t) => leave(t.id, () => tasks.update(t.id, { is_done: !t.is_done, done_at: t.is_done ? null : new Date().toISOString() }));
 
   return (
     <Page title="מטלות" subtitle={`${open.length} פתוחות · ${open.filter((t) => t.size === "big").length} גדולות`}>
@@ -62,9 +63,9 @@ export default function Tasks() {
           <Skeletons n={4} />
         ) : list.length === 0 ? (
           view === "open" ? (
-            <Empty icon="✨" title="הכל סגור" text="אין מטלות פתוחות. זמן לקפה." />
+            <Empty icon={<CheckCheck size={28} strokeWidth={1.8} />} title="הכל סגור" text="אין מטלות פתוחות. זמן לקפה." />
           ) : (
-            <Empty icon="📋" title="עוד לא סיימתם כלום" text="מטלות שמסמנים כבוצעו יופיעו כאן." />
+            <Empty icon={<ListChecks size={28} strokeWidth={1.8} />} title="עוד לא סיימתם כלום" text="מטלות שמסמנים כבוצעו יופיעו כאן." />
           )
         ) : (
           <ul className="space-y-2 stagger">
@@ -73,9 +74,9 @@ export default function Tasks() {
               const late = !t.is_done && d != null && d < 0;
               const soon = !t.is_done && d != null && d >= 0 && d <= 3;
               return (
-                <li key={t.id} className="card flex items-start gap-3 p-4">
+                <li key={t.id} className={`card flex items-start gap-3 p-4 ${leavingIds.has(t.id) ? "leaving" : ""}`}>
                   <div className="pt-0.5">
-                    <CheckCircle on={t.is_done} onClick={() => toggle(t)} label={t.is_done ? "החזרה לפתוחות" : "סימון כבוצעה"} />
+                    <CheckCircle on={t.is_done !== leavingIds.has(t.id)} onClick={() => toggle(t)} label={t.is_done ? "החזרה לפתוחות" : "סימון כבוצעה"} />
                   </div>
                   <button type="button" className="flex-1 text-start min-w-0" onClick={() => setEditing(t)}>
                     <p className={`text-[16px] leading-snug ${t.is_done ? "line-through text-muted" : "font-medium"}`}>{t.title}</p>

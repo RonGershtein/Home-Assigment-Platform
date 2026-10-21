@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Copy, ExternalLink, Plus } from "lucide-react";
+import { CheckCheck, Copy, ExternalLink, Hourglass, Plus, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { BackButton, Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
@@ -24,9 +24,9 @@ const TONE = {
 };
 
 const EMPTY = {
-  active: { icon: "🎟️", title: "אין שוברים בתוקף", text: "מוסיפים שובר עם תאריך תפוגה ומקבלים תזכורת חזותית לפני שהוא פג." },
-  expired: { icon: "⌛", title: "אף שובר לא פג", text: "שוברים שעבר התוקף שלהם בלי שנוצלו יעברו לכאן." },
-  used: { icon: "✅", title: "עוד לא ניצלתם שוברים", text: 'לוחצים "סימון כמנוצל" על שובר והוא עובר לכאן.' },
+  active: { icon: <Ticket size={28} strokeWidth={1.8} />, title: "אין שוברים בתוקף", text: "מוסיפים שובר עם תאריך תפוגה ומקבלים תזכורת חזותית לפני שהוא פג." },
+  expired: { icon: <Hourglass size={28} strokeWidth={1.8} />, title: "אף שובר לא פג", text: "שוברים שעבר התוקף שלהם בלי שנוצלו יעברו לכאן." },
+  used: { icon: <CheckCheck size={28} strokeWidth={1.8} />, title: "עוד לא ניצלתם שוברים", text: 'לוחצים "סימון כמנוצל" על שובר והוא עובר לכאן.' },
 };
 
 export const BackLink = () => <BackButton fallback={{ to: "/more", label: "עוד" }} />;

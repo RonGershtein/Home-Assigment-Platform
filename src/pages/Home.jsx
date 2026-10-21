@@ -1,12 +1,16 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft } from "lucide-react";
+import { ChefHat, ChevronLeft, Gift, ListChecks, ShoppingCart, Ticket } from "lucide-react";
 import { Page } from "../components/Shell";
 import ThemeToggle from "../components/ThemeToggle";
-import { SectionTitle } from "../components/ui";
+import { CheckCircle, SectionTitle, useLeaving } from "../components/ui";
 import { useTable } from "../hooks/useTable";
-import { LONG_TERM_KINDS } from "../lib/catalog";
-import { compactMoney, daysUntil, greeting, money, monthKey, relDays } from "../lib/format";
+import { LONG_TERM_KINDS, shopCat } from "../lib/catalog";
+import { matchGrocery } from "../lib/groceries";
+import { compactMoney, daysUntil, greeting, money, monthKey, monthLabel, relDays } from "../lib/format";
+
+const BACK = { back: "בית" };
+const sum = (rows) => rows.reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
 export default function Home() {
   const shopping = useTable("shopping_items");
@@ -15,11 +19,22 @@ export default function Home() {
   const tx = useTable("transactions");
   const accounts = useTable("accounts");
 
+  const [leavingIds, leave] = useLeaving();
   const toBuy = shopping.rows.filter((i) => !i.is_purchased);
-  const open = tasks.rows.filter((t) => !t.is_done);
-  const dueTasks = open
-    .filter((t) => t.due_date && daysUntil(t.due_date) <= 7)
-    .sort((a, b) => a.due_date.localeCompare(b.due_date));
+
+  // מטלות: קודם עם תאריך (הקרוב ראשון), אחר כך החדשות
+  const open = useMemo(
+    () =>
+      tasks.rows
+        .filter((t) => !t.is_done)
+        .sort((a, b) => {
+          if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+          if (a.due_date) return -1;
+          if (b.due_date) return 1;
+          return (b.created_at || "").localeCompare(a.created_at || "");
+        }),
+    [tasks.rows]
+  );
 
   const expiring = useMemo(
     () =>
@@ -33,27 +48,98 @@ export default function Home() {
 
   const month = monthKey(new Date());
   const monthTx = tx.rows.filter((t) => t.date?.startsWith(month));
-  const out = monthTx.filter((t) => t.kind === "expense").reduce((s, t) => s + (Number(t.amount) || 0), 0);
-  const inc = monthTx.filter((t) => t.kind === "income").reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  const out = sum(monthTx.filter((t) => t.kind === "expense"));
+  const inc = sum(monthTx.filter((t) => t.kind === "income"));
   const liquid = accounts.rows.filter((a) => !a.archived && !LONG_TERM_KINDS.has(a.kind)).reduce((s, a) => s + (Number(a.balance) || 0), 0);
+  const spentShare = inc ? Math.min(1, out / inc) : out ? 1 : 0;
 
-  const loading = shopping.loading || tasks.loading || tx.loading || accounts.loading;
   const date = new Intl.DateTimeFormat("he-IL", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   return (
     <Page title={greeting()} subtitle={date} action={<ThemeToggle />}>
-      <div className="grid grid-cols-2 gap-2 stagger">
-        <Tile loading={loading} to="/shopping" icon="🛒" label="לקנות" value={toBuy.length} hint={toBuy.slice(0, 3).map((i) => i.item_name).join(", ") || "הרשימה ריקה"} />
-        <Tile loading={loading} to="/tasks" icon="✅" label="מטלות פתוחות" value={open.length} hint={open[0]?.title || "הכל סגור"} />
-        <Tile loading={loading} to="/budget" icon="🧾" label="הוצאות החודש" value={compactMoney(out)} hint={inc ? `נשאר ${compactMoney(inc - out)}` : "אין עדיין הכנסות"} />
-        <Tile loading={loading} to="/money" icon="🏦" label="כסף נזיל" value={compactMoney(liquid)} hint="עו״ש וחסכונות" />
-      </div>
+      <Link to="/budget" state={BACK} className="press hero block p-5 rise">
+        <div className="flex items-center justify-between text-[13px] text-muted">
+          <span>{inc ? "נשאר החודש" : "הוצאות החודש"}</span>
+          <span>{monthLabel(month)}</span>
+        </div>
+        {tx.loading ? (
+          <div className="skeleton h-[52px] w-48 mt-2 !rounded-xl" />
+        ) : (
+          <p className={`num text-[52px] leading-[1.05] font-bold tracking-[-0.03em] mt-1 ${inc && inc - out < 0 ? "text-crit" : ""}`}>
+            {money(Math.round(inc ? inc - out : out))}
+          </p>
+        )}
+        <div className="h-2 rounded-full bg-raised mt-4 overflow-hidden" aria-hidden="true">
+          <div className={`bar h-full rounded-full ${spentShare > 0.9 ? "bg-crit" : "bg-accent"}`} style={{ width: `${Math.max(2, spentShare * 100)}%` }} />
+        </div>
+        <div className="flex justify-between mt-3 text-[13px]">
+          <span className="text-muted">
+            הוצאו <span className="num text-fg font-medium">{money(Math.round(out))}</span>
+            {inc > 0 && (
+              <>
+                {" "}
+                מתוך <span className="num text-fg font-medium">{money(Math.round(inc))}</span>
+              </>
+            )}
+          </span>
+          <span className="text-muted">
+            נזיל <span className="num text-fg font-medium">{accounts.loading ? "…" : compactMoney(liquid)}</span>
+          </span>
+        </div>
+      </Link>
+
+      <SectionTitle right={<SeeAll to="/shopping" label={toBuy.length ? `${toBuy.length} פריטים` : null} />}>לקנות</SectionTitle>
+      <Link to="/shopping" className="press card block p-4">
+        {shopping.loading ? (
+          <div className="skeleton h-10 !rounded-xl" />
+        ) : toBuy.length === 0 ? (
+          <span className="flex items-center gap-3 text-muted text-[15px]">
+            <ShoppingCart size={20} /> הרשימה ריקה. נגיעה להוספה
+          </span>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {toBuy.slice(0, 8).map((i) => (
+              <span key={i.id} className="inline-flex items-center gap-1.5 h-9 ps-2 pe-3 rounded-full bg-raised text-[14px]">
+                <span className="text-[17px] leading-none">{matchGrocery(i.item_name)?.icon ?? shopCat(i.category).icon}</span>
+                {i.item_name}
+              </span>
+            ))}
+            {toBuy.length > 8 && <span className="inline-flex items-center h-9 px-3 rounded-full text-[14px] text-muted num">+{toBuy.length - 8}</span>}
+          </div>
+        )}
+      </Link>
+
+      <SectionTitle right={<SeeAll to="/tasks" label={open.length ? `${open.length} פתוחות` : null} />}>מטלות</SectionTitle>
+      {tasks.loading ? (
+        <div className="skeleton h-14" />
+      ) : open.length === 0 ? (
+        <Link to="/tasks" className="press card flex items-center gap-3 p-4 text-muted text-[15px]">
+          <ListChecks size={20} /> אין מטלות פתוחות
+        </Link>
+      ) : (
+        <ul className="card divide-y overflow-hidden">
+          {open.slice(0, 4).map((t) => {
+            const d = daysUntil(t.due_date);
+            return (
+              <li key={t.id} className={`enter flex items-center gap-3 ps-4 pe-3 min-h-[56px] ${leavingIds.has(t.id) ? "leaving" : ""}`}>
+                <CheckCircle
+                  on={leavingIds.has(t.id)}
+                  onClick={() => leave(t.id, () => tasks.update(t.id, { is_done: true, done_at: new Date().toISOString() }))} label={`סימון "${t.title}" כבוצעה`} />
+                <Link to="/tasks" state={BACK} className="flex-1 min-w-0 py-3 text-[15px] font-medium truncate">
+                  {t.title}
+                </Link>
+                {d != null && <span className={`text-[13px] font-medium shrink-0 ${d < 0 ? "text-crit" : d <= 3 ? "text-warn" : "text-muted"}`}>{relDays(d)}</span>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {expiring.length > 0 && (
         <>
-          <SectionTitle right={<Link to="/vouchers" state={BACK} className="text-[14px] text-accent-text font-medium">הכל</Link>}>🎟️ שוברים שפגים בקרוב</SectionTitle>
+          <SectionTitle right={<SeeAll to="/vouchers" />}>שוברים שפגים בקרוב</SectionTitle>
           <ul className="card divide-y overflow-hidden">
-            {expiring.slice(0, 4).map((v) => (
+            {expiring.slice(0, 3).map((v) => (
               <li key={v.id}>
                 <Link to="/vouchers" state={BACK} className="press flex items-center gap-3 px-4 min-h-[56px]">
                   <span className="flex-1 min-w-0 text-[15px] font-medium truncate">{v.title}</span>
@@ -66,54 +152,32 @@ export default function Home() {
         </>
       )}
 
-      {dueTasks.length > 0 && (
-        <>
-          <SectionTitle right={<Link to="/tasks" state={BACK} className="text-[14px] text-accent-text font-medium">הכל</Link>}>📅 השבוע</SectionTitle>
-          <ul className="card divide-y overflow-hidden">
-            {dueTasks.slice(0, 4).map((t) => {
-              const d = daysUntil(t.due_date);
-              return (
-                <li key={t.id}>
-                  <Link to="/tasks" state={BACK} className="press flex items-center gap-3 px-4 min-h-[56px]">
-                    <span className="flex-1 min-w-0 text-[15px] font-medium truncate">{t.title}</span>
-                    <span className={`text-[13px] font-medium ${d < 0 ? "text-crit" : "text-warn"}`}>{relDays(d)}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-
       <SectionTitle>עוד בבית</SectionTitle>
-      <div className="grid grid-cols-3 gap-2">
+      <ul className="card divide-y overflow-hidden">
         {[
-          ["/vouchers", "🎟️", "שוברים"],
-          ["/gifts", "💌", "מתנות חתונה"],
-          ["/recipes", "🍳", "מתכונים"],
-        ].map(([to, icon, label]) => (
-          <Link key={to} to={to} state={BACK} className="press card flex flex-col items-center gap-2 py-4 text-[14px] font-medium">
-            <span className="text-2xl">{icon}</span>
-            {label}
-          </Link>
+          ["/vouchers", Ticket, "שוברים", `${vouchers.rows.filter((v) => v.status !== "used" && (daysUntil(v.expiry_date) ?? 0) >= 0).length} בתוקף`],
+          ["/gifts", Gift, "מתנות חתונה", null],
+          ["/recipes", ChefHat, "מתכונים", null],
+        ].map(([to, Icon, label, hint]) => (
+          <li key={to}>
+            <Link to={to} state={BACK} className="press flex items-center gap-3 px-4 min-h-[56px]">
+              <Icon size={20} className="text-muted shrink-0" />
+              <span className="flex-1 text-[15px] font-medium">{label}</span>
+              {hint && !vouchers.loading && <span className="text-[13px] text-muted num">{hint}</span>}
+              <ChevronLeft size={18} className="text-muted" />
+            </Link>
+          </li>
         ))}
-      </div>
+      </ul>
     </Page>
   );
 }
 
-const BACK = { back: "בית" };
-
-function Tile({ to, icon, label, value, hint, loading }) {
+function SeeAll({ to, label }) {
   return (
-    <Link to={to} state={BACK} className="press card p-4 flex flex-col min-h-[128px]">
-      <div className="flex items-center justify-between">
-        <span className="text-xl">{icon}</span>
-        <ChevronLeft size={16} className="text-muted" />
-      </div>
-      {loading ? <div className="skeleton h-7 w-20 mt-auto mb-1 !rounded-lg" /> : <p className="num text-[26px] font-bold mt-auto leading-tight">{value}</p>}
-      <p className="text-[13px] font-medium">{label}</p>
-      <p className="text-[12px] text-muted truncate mt-0.5">{loading ? "\u00a0" : hint}</p>
+    <Link to={to} state={BACK} className="press flex items-center gap-0.5 text-[14px] text-accent-text font-medium h-8">
+      {label || "הכל"}
+      <ChevronLeft size={16} />
     </Link>
   );
 }

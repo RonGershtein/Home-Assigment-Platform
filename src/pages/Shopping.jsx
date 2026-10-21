@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, Share2, Trash2 } from "lucide-react";
+import { ArrowUp, ChevronDown, Share2, ShoppingBasket, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
-import { CheckCircle, Empty, SectionTitle, Skeletons } from "../components/ui";
+import { CheckCircle, Empty, SectionTitle, Skeletons, useLeaving } from "../components/ui";
 import { useTable } from "../hooks/useTable";
 import { SHOP_CATEGORIES, shopCat } from "../lib/catalog";
 import { COMMON_GROCERIES, matchGrocery } from "../lib/groceries";
@@ -21,6 +21,7 @@ export default function Shopping() {
   const [catSheet, setCatSheet] = useState(null); // { item } או { forInput: true }
   const [showBought, setShowBought] = useState(false);
   const input = useRef(null);
+  const [leavingIds, leave] = useLeaving();
 
   const remembered = useMemo(() => new Map(memory.rows.map((m) => [m.item_name, m.category])), [memory.rows]);
   const guess = picked ?? remembered.get(norm(text)) ?? matchGrocery(text)?.category ?? "other";
@@ -163,7 +164,7 @@ export default function Shopping() {
           <Skeletons n={5} h={56} />
         </div>
       ) : toBuy.length === 0 ? (
-        <Empty icon="🧺" title="אין מה לקנות" text="פריטים שמוסיפים מקבלים קטגוריה אוטומטית לפי מה שהוספתם בעבר." />
+        <Empty icon={<ShoppingBasket size={28} strokeWidth={1.8} />} title="אין מה לקנות" text="פריטים שמוסיפים מקבלים קטגוריה אוטומטית לפי מה שהוספתם בעבר." />
       ) : (
         groups.map((g) => (
           <section key={g.key}>
@@ -172,7 +173,7 @@ export default function Shopping() {
             </SectionTitle>
             <ul className="card overflow-hidden divide-y">
               {g.items.map((i) => (
-                <Row key={i.id} item={i} onToggle={() => items.update(i.id, { is_purchased: true })} onCat={() => setCatSheet({ item: i })} />
+                <Row key={i.id} item={i} leaving={leavingIds.has(i.id)} onToggle={() => leave(i.id, () => items.update(i.id, { is_purchased: true }))} onCat={() => setCatSheet({ item: i })} />
               ))}
             </ul>
           </section>
@@ -222,10 +223,10 @@ export default function Shopping() {
   );
 }
 
-function Row({ item, done, onToggle, onCat }) {
+function Row({ item, done, leaving, onToggle, onCat }) {
   return (
-    <li className="enter flex items-center gap-3 ps-4 pe-2 min-h-[56px]">
-      <CheckCircle on={!!done} onClick={onToggle} label={done ? "החזרה לרשימה" : "סימון כנקנה"} />
+    <li className={`enter flex items-center gap-3 ps-4 pe-2 min-h-[56px] ${leaving ? "leaving" : ""}`}>
+      <CheckCircle on={!!done !== !!leaving} onClick={onToggle} label={done ? "החזרה לרשימה" : "סימון כנקנה"} />
       <button type="button" className={`flex-1 text-start py-3 text-[16px] ${done ? "line-through text-muted" : ""}`} onClick={onToggle}>
         {item.item_name}
       </button>
