@@ -51,6 +51,26 @@ export function useLeaving(ms = 380) {
   return [ids, leave];
 }
 
+// מתג בסגנון iOS
+export function Switch({ on, onChange, label, disabled }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={`press relative w-[52px] h-8 rounded-full shrink-0 transition-colors duration-200 disabled:opacity-40 ${on ? "bg-accent" : "bg-hover"}`}
+    >
+      <span
+        className="absolute top-1 start-1 w-6 h-6 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out"
+        style={{ transform: on ? "translateX(-20px)" : "translateX(0)" }}
+      />
+    </button>
+  );
+}
+
 export function CheckCircle({ on, onClick, label }) {
   return (
     <button type="button" className="check" data-on={on} onClick={onClick} aria-pressed={on} aria-label={label}>

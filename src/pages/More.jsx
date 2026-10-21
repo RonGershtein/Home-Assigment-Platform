@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { ChefHat, ChevronLeft, Gift, Landmark, LogOut, Receipt, RotateCcw, Ticket } from "lucide-react";
 import { Page } from "../components/Shell";
 import ThemeToggle from "../components/ThemeToggle";
+import { NotificationSettings, ProfileName } from "../components/Settings";
 import { SectionTitle } from "../components/ui";
 import { signOut } from "../lib/auth";
 import { resetDemo } from "../lib/localBackend";
@@ -9,7 +10,7 @@ import { isDemoMode } from "../lib/supabase";
 
 const LINKS = [
   { to: "/vouchers", icon: Ticket, label: "שוברים", hint: "לפי תוקף, קודים ואתרים" },
-  { to: "/gifts", icon: Gift, label: "מתנות חתונה", hint: "מי הגיע וכמה נתן" },
+  { to: "/gifts", icon: Gift, label: "מתנות ואירועים", hint: "מה קיבלנו בחתונה ומה נתנו באירועים" },
   { to: "/recipes", icon: ChefHat, label: "מתכונים", hint: "לינקים ומה אהבנו" },
   { to: "/money", icon: Landmark, label: "חסכונות וחשבונות", hint: 'עו"ש, קופות, פיקדונות' },
   { to: "/budget", icon: Receipt, label: "הכנסות והוצאות", hint: "תקציב חודשי לפי קטגוריות" },
@@ -35,8 +36,11 @@ export default function More({ user }) {
         ))}
       </ul>
 
+      {!isDemoMode && <NotificationSettings />}
+
       <SectionTitle>חשבון</SectionTitle>
       <div className="card divide-y overflow-hidden">
+        {!isDemoMode && <ProfileName user={user} />}
         <p className="px-4 py-3 text-[14px] text-muted truncate">{isDemoMode ? "מצב הדגמה - הנתונים נשמרים רק במכשיר הזה" : user?.email}</p>
         {isDemoMode ? (
           <button type="button" className="press w-full flex items-center gap-3 px-4 h-14 text-crit" onClick={resetDemo}>

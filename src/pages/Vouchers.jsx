@@ -1,5 +1,8 @@
-import { useMemo, useState } from "react";
-import { CheckCheck, Copy, ExternalLink, Hourglass, Plus, Ticket } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Camera, CheckCheck, ExternalLink, Hourglass, ImageIcon, Plus, ScanBarcode, Ticket, Trash2 } from "lucide-react";
+import { VoucherShow } from "../components/VoucherShow";
+import { imageUrl, removeVoucherImage, uploadVoucherImage } from "../lib/images";
+import { isDemoMode } from "../lib/supabase";
 import { toast } from "sonner";
 import { BackButton, Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
@@ -41,7 +44,9 @@ export default function Vouchers() {
   const expired = vouchers.rows.filter((v) => stateOf(v) === "expired");
   const used = vouchers.rows.filter((v) => v.status === "used");
   const byView = { active, expired, used };
-  const activeValue = active.reduce((s, v) => s + (v.voucher_type === "cash" ? Number(v.amount) || 0 : 0), 0);
+  const activeValue = active.reduce((s, v) => s + (v.voucher_type === "cash" ? Number(v.balance ?? v.amount) || 0 : 0), 0);
+  const [showingId, setShowingId] = useState(null);
+  const showing = vouchers.rows.find((v) => v.id === showingId) ?? null;
   const soonCount = active.filter((v) => stateOf(v) === "soon").length;
 
   const list = useMemo(() => {
@@ -94,7 +99,13 @@ export default function Vouchers() {
         ) : (
           <ul className="space-y-2 stagger">
             {list.map((v) => (
-              <VoucherCard key={v.id} v={v} onOpen={() => setEditing(v)} onUse={() => vouchers.update(v.id, { status: v.status === "used" ? "active" : "used" })} />
+              <VoucherCard
+                key={v.id}
+                v={v}
+                onOpen={() => setEditing(v)}
+                onShow={() => setShowingId(v.id)}
+                onUse={() => vouchers.update(v.id, { status: v.status === "used" ? "active" : "used" })}
+              />
             ))}
           </ul>
         )}
@@ -107,18 +118,48 @@ export default function Vouchers() {
           <VoucherForm
             key={editing.id || "new"}
             v={editing}
-            onSave={async (values) => {
-              if (editing.id) await vouchers.update(editing.id, values);
-              else await vouchers.create({ ...values, status: "active" });
+            onSave={async (values, photo) => {
+              const prev = editing;
               setEditing(null);
+              const row = prev.id ? await vouchers.update(prev.id, values) : await vouchers.create({ ...values, status: "active" });
+              const id = prev.id ?? row?.id;
+              if (!id || (!photo.file && !photo.remove)) return;
+              try {
+                const image_path = photo.file ? await uploadVoucherImage(id, photo.file) : null;
+                await vouchers.update(id, { image_path });
+                removeVoucherImage(prev.image_path).catch(() => {});
+              } catch {
+                toast.error("התמונה לא הועלתה");
+              }
             }}
             onDelete={
               editing.id &&
               (async () => {
-                await vouchers.remove(editing.id);
+                const v = editing;
                 setEditing(null);
+                await vouchers.remove(v.id);
+                removeVoucherImage(v.image_path).catch(() => {});
               })
             }
+          />
+        )}
+      </Sheet>
+
+      <Sheet open={!!showing} onClose={() => setShowingId(null)} title={showing?.title ?? ""}>
+        {showing && (
+          <VoucherShow
+            key={showing.id}
+            v={showing}
+            onUse={async () => {
+              setShowingId(null);
+              await vouchers.update(showing.id, { status: "used" });
+              toast.success("סומן כמנוצל");
+            }}
+            onPartial={async (after) => {
+              setShowingId(null);
+              await vouchers.update(showing.id, { balance: after, status: after <= 0 ? "used" : "active" });
+              toast.success(after <= 0 ? "השובר נוצל במלואו" : `נשארו ${money(after)} בשובר`);
+            }}
           />
         )}
       </Sheet>
@@ -126,18 +167,13 @@ export default function Vouchers() {
   );
 }
 
-function VoucherCard({ v, onOpen, onUse }) {
+function VoucherCard({ v, onOpen, onShow, onUse }) {
   const s = stateOf(v);
   const d = daysUntil(v.expiry_date);
-  const copy = async (e) => {
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(v.voucher_code);
-      toast.success("הקוד הועתק");
-    } catch {
-      toast.error("לא הצלחתי להעתיק");
-    }
-  };
+  const cash = v.voucher_type === "cash" && v.amount != null;
+  const remaining = cash ? Number(v.balance ?? v.amount) : null;
+  const partial = cash && v.balance != null && Number(v.balance) < Number(v.amount);
+  const canShow = v.voucher_code || v.image_path;
 
   return (
     <li className={`card overflow-hidden ${s === "used" || s === "expired" ? "opacity-70" : ""}`}>
@@ -150,19 +186,24 @@ function VoucherCard({ v, onOpen, onUse }) {
               {v.notes ? ` · ${v.notes}` : ""}
             </p>
           </div>
-          {v.voucher_type === "cash" && v.amount != null && <p className="num text-[20px] font-bold shrink-0">{money(v.amount)}</p>}
+          {cash && (
+            <div className="text-end shrink-0">
+              <p className="num text-[20px] font-bold">{money(remaining)}</p>
+              {partial && <p className="num text-[12px] text-muted">נשאר מתוך {money(Number(v.amount))}</p>}
+            </div>
+          )}
         </div>
         <p className={`text-[13px] font-medium mt-2 ${TONE[s]}`}>
           {s === "used" ? "נוצל" : v.expiry_date ? `${s === "expired" ? "פג" : "בתוקף עד"} ${fmtDate(v.expiry_date)} · ${relDays(d)}` : "ללא תאריך תפוגה"}
         </p>
       </button>
       <div className="flex items-center gap-1 px-2 pb-2">
-        {v.voucher_code && (
-          <button type="button" className="press flex-1 min-w-0 h-10 rounded-xl bg-raised flex items-center justify-center gap-2 text-[14px]" onClick={copy}>
-            <span className="num font-mono truncate" dir="ltr">
-              {v.voucher_code}
+        {canShow && (
+          <button type="button" className="press flex-1 min-w-0 h-10 rounded-xl bg-raised flex items-center justify-center gap-2 text-[14px]" onClick={onShow} aria-label="הצגה בקופה">
+            {v.voucher_code ? <ScanBarcode size={16} className="shrink-0" /> : <ImageIcon size={16} className="shrink-0" />}
+            <span className="num truncate" dir={v.voucher_code ? "ltr" : undefined}>
+              {v.voucher_code || "תמונת השובר"}
             </span>
-            <Copy size={15} className="text-muted shrink-0" />
           </button>
         )}
         {v.store_url && (
@@ -170,8 +211,12 @@ function VoucherCard({ v, onOpen, onUse }) {
             <ExternalLink size={17} />
           </a>
         )}
-        <button type="button" className={`press h-10 px-4 rounded-xl text-[14px] font-medium ${v.voucher_code ? "" : "flex-1"} ${v.status === "used" ? "bg-raised" : "bg-accent/15 text-accent-text"}`} onClick={onUse}>
-          {v.status === "used" ? "החזרה לפעיל" : "סימון כמנוצל"}
+        <button
+          type="button"
+          className={`press h-10 px-4 rounded-xl text-[14px] font-medium ${canShow ? "" : "flex-1"} ${v.status === "used" ? "bg-raised" : "bg-accent/15 text-accent-text"}`}
+          onClick={v.status !== "used" && cash ? onShow : onUse}
+        >
+          {v.status === "used" ? "החזרה לפעיל" : cash ? "שימוש" : "סימון כמנוצל"}
         </button>
       </div>
     </li>
@@ -179,7 +224,9 @@ function VoucherCard({ v, onOpen, onUse }) {
 }
 
 function VoucherForm({ v, onSave, onDelete }) {
+  const [photo, setPhoto] = useState({ file: null, remove: false });
   const [f, setF] = useState({
+    balance: v.balance ?? "",
     title: v.title || "",
     voucher_type: v.voucher_type || "cash",
     amount: v.amount ?? "",
@@ -206,7 +253,8 @@ function VoucherForm({ v, onSave, onDelete }) {
           voucher_code: f.voucher_code.trim() || null,
           store_url: f.store_url.trim() || null,
           notes: f.notes.trim(),
-        });
+          ...(v.id && f.voucher_type === "cash" ? { balance: f.balance === "" ? null : toNumber(f.balance) } : {}),
+        }, photo);
       }}
     >
       <Segmented
@@ -229,12 +277,18 @@ function VoucherForm({ v, onSave, onDelete }) {
           <input className="field" value={f.gift_description} onChange={set("gift_description")} placeholder="ארוחה זוגית, עיסוי…" />
         </Field>
       )}
+      {v.id && f.voucher_type === "cash" && (
+        <Field label="יתרה שנשארה (לשוברים שמשתמשים בהם בחלקים)">
+          <input className="field num" inputMode="decimal" value={f.balance} onChange={set("balance")} placeholder={f.amount ? `₪${f.amount}` : "₪0"} />
+        </Field>
+      )}
       <Field label="בתוקף עד">
         <input type="date" className="field" value={f.expiry_date} onChange={set("expiry_date")} />
       </Field>
       <Field label="קוד / מספר שובר">
         <input className="field num" dir="ltr" value={f.voucher_code} onChange={set("voucher_code")} autoComplete="off" autoCapitalize="characters" />
       </Field>
+      {!isDemoMode && <PhotoField path={photo.remove ? null : v.image_path} file={photo.file} onChange={setPhoto} />}
       <Field label="קישור לאתר">
         <input className="field" dir="ltr" type="url" inputMode="url" value={f.store_url} onChange={set("store_url")} placeholder="https://" />
       </Field>
@@ -248,5 +302,48 @@ function VoucherForm({ v, onSave, onDelete }) {
         {onDelete && <DeleteButton onConfirm={onDelete} label="" />}
       </div>
     </form>
+  );
+}
+
+function PhotoField({ path, file, onChange }) {
+  const [url, setUrl] = useState(null);
+  useEffect(() => {
+    if (file) {
+      const u = URL.createObjectURL(file);
+      setUrl(u);
+      return () => URL.revokeObjectURL(u);
+    }
+    let alive = true;
+    imageUrl(path).then((u) => alive && setUrl(u));
+    return () => {
+      alive = false;
+    };
+  }, [path, file]);
+
+  return (
+    <div>
+      <span className="label">תמונת השובר</span>
+      {url ? (
+        <div className="relative">
+          <img src={url} alt="" className="w-full max-h-64 object-contain rounded-2xl bg-raised" />
+          <button type="button" className="icon-btn absolute top-2 end-2 bg-black/60 text-white" onClick={() => onChange({ file: null, remove: true })} aria-label="הסרת התמונה">
+            <Trash2 size={17} />
+          </button>
+        </div>
+      ) : (
+        <label className="press flex items-center justify-center gap-2 h-14 rounded-2xl bg-raised text-[15px] cursor-pointer">
+          <Camera size={19} /> צילום או בחירת תמונה
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onChange({ file: f, remove: false });
+            }}
+          />
+        </label>
+      )}
+    </div>
   );
 }

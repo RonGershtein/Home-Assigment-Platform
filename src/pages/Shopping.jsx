@@ -7,6 +7,8 @@ import { CheckCircle, Empty, SectionTitle, Skeletons, useLeaving } from "../comp
 import { useTable } from "../hooks/useTable";
 import { SHOP_CATEGORIES, shopCat } from "../lib/catalog";
 import { COMMON_GROCERIES, GROCERIES, matchGrocery } from "../lib/groceries";
+import { UNITS, formatQuantity, parseQuantity, stepOf } from "../lib/quantity";
+import { useSession } from "../lib/auth";
 
 // אייקון לפריט: מהקטלוג, ואם לא נמצא - של הקטגוריה
 const iconOf = (name, category) => matchGrocery(name)?.icon ?? shopCat(category).icon;
@@ -17,6 +19,12 @@ const foldFinals = (s) => s.replace(/[ךםןףץ]/g, (c) => FINALS[c]);
 
 export default function Shopping() {
   const items = useTable("shopping_items");
+  const profiles = useTable("profiles");
+  const session = useSession();
+  const me = session.user?.id;
+  const names = useMemo(() => new Map(profiles.rows.map((p) => [p.user_id, p.name])), [profiles.rows]);
+  // "מי הוסיף" מוצג רק כשזה מישהו אחר
+  const addedBy = (i) => (i.created_by && i.created_by !== me ? names.get(i.created_by) : null);
   const memory = useTable("item_categories");
   const [text, setText] = useState("");
   const [picked, setPicked] = useState(null); // קטגוריה שנבחרה ידנית לפריט שמוקלד
@@ -77,16 +85,23 @@ export default function Shopping() {
       .slice(0, 8);
   }, [text, memory.rows, toBuy]);
 
-  async function add(name = text, category = guess) {
-    const item_name = norm(name);
+  // הקלדה חופשית מפוענחת לכמות ("2 חלב"); בחירה מהצעות נשמרת כמו שהיא
+  async function add(name = text, category = guess, parse = false) {
+    const q = parse ? parseQuantity(name) : { name, quantity: 1, unit: null };
+    const item_name = norm(q.name);
     if (!item_name) return;
+    if (parse && q.name !== name && !picked) category = remembered.get(item_name) ?? matchGrocery(item_name)?.category ?? category;
     setText("");
     setPicked(null);
     input.current?.focus();
     const existing = items.rows.find((i) => i.item_name === item_name);
-    if (existing && !existing.is_purchased) return toast("כבר ברשימה");
-    if (existing) await items.update(existing.id, { is_purchased: false, category });
-    else await items.create({ item_name, category, is_purchased: false });
+    if (existing && !existing.is_purchased) {
+      if (q.quantity === 1 && !q.unit) return toast("כבר ברשימה");
+      await items.update(existing.id, { quantity: q.quantity, unit: q.unit });
+      return toast(`עודכנה הכמות: ${formatQuantity(q.quantity, q.unit) ?? "1"}`);
+    }
+    if (existing) await items.update(existing.id, { is_purchased: false, category, quantity: q.quantity, unit: q.unit });
+    else await items.create({ item_name, category, is_purchased: false, quantity: q.quantity, unit: q.unit });
     if (remembered.get(item_name) !== category) memory.api.upsert({ item_name, category }, "item_name").then(memory.refresh);
   }
 
@@ -98,7 +113,11 @@ export default function Shopping() {
   }
 
   function share() {
-    const lines = groups.flatMap((g) => [`${g.icon} ${g.label}`, ...g.items.map((i) => `▫️ ${i.item_name}`), ""]);
+    const lines = groups.flatMap((g) => [
+      `${g.icon} ${g.label}`,
+      ...g.items.map((i) => `▫️ ${i.item_name}${formatQuantity(i.quantity, i.unit) ? ` (${formatQuantity(i.quantity, i.unit)})` : ""}`),
+      "",
+    ]);
     const msg = `🛒 רשימת קניות\n\n${lines.join("\n")}`.trim();
     if (navigator.share) navigator.share({ text: msg }).catch(() => {});
     else window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
@@ -122,7 +141,7 @@ export default function Shopping() {
         className="sticky top-[calc(env(safe-area-inset-top)+56px)] z-20 -mx-4 px-4 pb-2"
         onSubmit={(e) => {
           e.preventDefault();
-          add();
+          add(text, guess, true);
         }}
       >
         <div className="card flex items-center gap-1.5 p-1.5 transition-shadow duration-150 focus-within:shadow-[inset_0_0_0_2px_hsl(var(--accent))]">
@@ -191,7 +210,7 @@ export default function Shopping() {
             </SectionTitle>
             <ul className="card overflow-hidden divide-y">
               {g.items.map((i) => (
-                <Row key={i.id} item={i} leaving={leavingIds.has(i.id)} onToggle={() => leave(i.id, () => items.update(i.id, { is_purchased: true }))} onCat={() => setCatSheet({ item: i })} />
+                <Row key={i.id} item={i} by={addedBy(i)} leaving={leavingIds.has(i.id)} onToggle={() => leave(i.id, () => items.update(i.id, { is_purchased: true }))} onCat={() => setCatSheet({ item: i })} />
               ))}
             </ul>
           </section>
@@ -219,7 +238,15 @@ export default function Shopping() {
         </section>
       )}
 
-      <Sheet open={!!catSheet} onClose={() => setCatSheet(null)} title="קטגוריה">
+      <Sheet open={!!catSheet} onClose={() => setCatSheet(null)} title={catSheet?.item ? catSheet.item.item_name : "קטגוריה"}>
+        {catSheet?.item && (
+          <QuantityEditor
+            key={catSheet.item.id}
+            item={items.rows.find((i) => i.id === catSheet.item.id) ?? catSheet.item}
+            onChange={(patch) => items.update(catSheet.item.id, patch)}
+          />
+        )}
+        {catSheet?.item && <p className="label mt-5">מחלקה בסופר</p>}
         <div className="grid grid-cols-3 gap-2 pb-2">
           {SHOP_CATEGORIES.map((c) => {
             const current = catSheet?.item ? catSheet.item.category : guess;
@@ -241,21 +268,61 @@ export default function Shopping() {
   );
 }
 
-function Row({ item, done, leaving, onToggle, onCat }) {
+function Row({ item, by, done, leaving, onToggle, onCat }) {
   return (
     <li className={`enter flex items-center gap-3 ps-4 pe-2 min-h-[56px] ${leaving ? "leaving" : ""}`}>
       <CheckCircle on={!!done !== !!leaving} onClick={onToggle} label={done ? "החזרה לרשימה" : "סימון כנקנה"} />
-      <button type="button" className={`flex-1 text-start py-3 text-[16px] ${done ? "line-through text-muted" : ""}`} onClick={onToggle}>
-        {item.item_name}
+      <button type="button" className="flex-1 min-w-0 text-start py-2.5" onClick={onToggle}>
+        <span className="flex items-center gap-2">
+          <span className={`text-[16px] truncate ${done ? "line-through text-muted" : ""}`}>{item.item_name}</span>
+          {formatQuantity(item.quantity, item.unit) && (
+            <span className="num shrink-0 h-6 px-2 rounded-full bg-accent/20 text-accent-text text-[13px] font-semibold grid place-items-center">{formatQuantity(item.quantity, item.unit)}</span>
+          )}
+        </span>
+        {by && !done && <span className="block text-[12px] text-muted mt-0.5">נוסף ע״י {by}</span>}
       </button>
       <button
         type="button"
         className={`press grid place-items-center w-10 h-10 rounded-xl bg-raised text-[20px] shrink-0 ${done ? "opacity-50 grayscale" : ""}`}
         onClick={onCat}
-        aria-label={`קטגוריה: ${shopCat(item.category).label} - שינוי`}
+        aria-label={`עריכת ${item.item_name}: כמות וקטגוריה`}
       >
         {iconOf(item.item_name, item.category)}
       </button>
     </li>
+  );
+}
+
+function QuantityEditor({ item, onChange }) {
+  const unit = item.unit ?? null;
+  const q = Number(item.quantity) || 1;
+  const step = stepOf(unit);
+  const set = (quantity, u = unit) => onChange({ quantity: Math.max(step, Math.round(quantity * 100) / 100), unit: u });
+  return (
+    <div>
+      <span className="label">כמות</span>
+      <div className="flex items-center gap-2">
+        <button type="button" className="btn btn-soft w-12 px-0 text-xl" onClick={() => set(q - step)} disabled={q <= step} aria-label="פחות">
+          −
+        </button>
+        <p className="num flex-1 text-center text-[24px] font-semibold">{formatQuantity(q, unit) ?? "1"}</p>
+        <button type="button" className="btn btn-soft w-12 px-0 text-xl" onClick={() => set(q + step)} aria-label="יותר">
+          +
+        </button>
+      </div>
+      <div className="hscroll mt-3">
+        {UNITS.map((u) => (
+          <button
+            key={u.label}
+            type="button"
+            className="chip bg-raised"
+            data-on={unit === u.key}
+            onClick={() => set(u.key === "g" ? 500 : u.key === "kg" || u.key === "l" ? 1 : unit === "g" ? 1 : q, u.key)}
+          >
+            {u.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

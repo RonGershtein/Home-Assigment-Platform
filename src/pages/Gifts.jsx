@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
-import { Download, Gift, Plus, SearchX } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { CalendarHeart, Download, Gift, Plus, SearchX } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
-import { DeleteButton, Empty, Fab, Field, SearchField, Skeletons } from "../components/ui";
+import { DeleteButton, Empty, Fab, Field, SearchField, Segmented, Skeletons } from "../components/ui";
+import { GivenView } from "./GivenGifts";
 import { useTable } from "../hooks/useTable";
 import { fmtNum, money, toNumber } from "../lib/format";
 import { BackLink } from "./Vouchers";
@@ -16,6 +18,18 @@ const SORTS = [
 
 export default function Gifts() {
   const gifts = useTable("gifts");
+  const given = useTable("given_gifts");
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "given" ? "given" : "received";
+  const setTab = (t) => setParams(t === "given" ? { tab: "given" } : {}, { replace: true, state: window.history.state?.usr });
+  const [startGiven, setStartGiven] = useState(null);
+  const clearStart = useCallback(() => setStartGiven(null), []);
+  // מה החזרנו לכל מי שנתן לנו
+  const returned = useMemo(() => {
+    const m = new Map();
+    for (const g of given.rows) if (g.gift_id) m.set(g.gift_id, (m.get(g.gift_id) || 0) + (Number(g.amount) || 0));
+    return m;
+  }, [given.rows]);
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("name");
   const [editing, setEditing] = useState(null);
@@ -55,16 +69,30 @@ export default function Gifts() {
 
   return (
     <Page
-      title="מתנות חתונה"
+      title="מתנות"
       back={<BackLink />}
       action={
-        gifts.rows.length > 0 && (
+        tab === "received" && gifts.rows.length > 0 && (
           <button type="button" className="icon-btn" onClick={exportXlsx} aria-label="ייצוא לאקסל">
             <Download size={20} />
           </button>
         )
       }
     >
+      <Segmented
+        className="mb-4"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "received", label: "קיבלנו בחתונה" },
+          { value: "given", label: "נתנו באירועים", count: given.rows.length || null },
+        ]}
+      />
+
+      {tab === "given" ? (
+        <GivenView given={given} gifts={gifts.rows} startWith={startGiven} onStarted={clearStart} />
+      ) : (
+      <>
       <div className="hero p-5 mb-4">
         <p className="text-[13px] text-muted">סה"כ התקבל</p>
         <p className="num text-[52px] leading-[1.05] font-bold tracking-[-0.03em]">{money(stats.total)}</p>
@@ -100,6 +128,7 @@ export default function Gifts() {
                   <div className="flex-1 min-w-0">
                     <p className="text-[16px] font-medium truncate">{g.giver_name}</p>
                     <p className="text-[13px] text-muted truncate">
+                      {returned.has(g.id) && <span className="text-good font-medium">החזרנו {money(returned.get(g.id))} · </span>}
                       {Number(g.guest_count) > 0 ? `${fmtNum(g.guest_count)} מגיעים` : "לא הגיעו"}
                       {g.notes ? ` · ${g.notes}` : ""}
                     </p>
@@ -113,6 +142,8 @@ export default function Gifts() {
       </div>
 
       <Fab onClick={() => setEditing({})} label="מתנה" icon={<Plus size={20} strokeWidth={2.6} />} />
+      </>
+      )}
 
       <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? "עריכה" : "מתנה חדשה"}>
         {editing && (
@@ -131,6 +162,15 @@ export default function Gifts() {
                 setEditing(null);
               })
             }
+            onGoing={
+              editing.id &&
+              (() => {
+                const g = editing;
+                setEditing(null);
+                setTab("given");
+                setStartGiven(g);
+              })
+            }
           />
         )}
       </Sheet>
@@ -147,7 +187,7 @@ function Stat({ label, value }) {
   );
 }
 
-function GiftForm({ g, onSave, onDelete }) {
+function GiftForm({ g, onSave, onDelete, onGoing }) {
   const [name, setName] = useState(g.giver_name || "");
   const [count, setCount] = useState(g.guest_count ?? 2);
   const [amount, setAmount] = useState(g.amount ?? "");
@@ -189,6 +229,11 @@ function GiftForm({ g, onSave, onDelete }) {
         </button>
         {onDelete && <DeleteButton onConfirm={onDelete} label="" />}
       </div>
+      {onGoing && (
+        <button type="button" className="btn btn-soft w-full" onClick={onGoing}>
+          <CalendarHeart size={18} /> הולכים לאירוע שלהם
+        </button>
+      )}
     </form>
   );
 }

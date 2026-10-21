@@ -156,7 +156,7 @@ export default function Home() {
       <ul className="card divide-y overflow-hidden">
         {[
           ["/vouchers", Ticket, "שוברים", `${vouchers.rows.filter((v) => v.status !== "used" && (daysUntil(v.expiry_date) ?? 0) >= 0).length} בתוקף`],
-          ["/gifts", Gift, "מתנות חתונה", null],
+          ["/gifts", Gift, "מתנות ואירועים", null],
           ["/recipes", ChefHat, "מתכונים", null],
         ].map(([to, Icon, label, hint]) => (
           <li key={to}>
