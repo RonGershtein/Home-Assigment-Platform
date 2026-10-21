@@ -6,6 +6,10 @@ import Sheet from "../components/Sheet";
 import { CheckCircle, Empty, SectionTitle, Skeletons } from "../components/ui";
 import { useTable } from "../hooks/useTable";
 import { SHOP_CATEGORIES, shopCat } from "../lib/catalog";
+import { COMMON_GROCERIES, matchGrocery } from "../lib/groceries";
+
+// אייקון לפריט: מהקטלוג, ואם לא נמצא - של הקטגוריה
+const iconOf = (name, category) => matchGrocery(name)?.icon ?? shopCat(category).icon;
 
 const norm = (s) => s.trim().replace(/\s+/g, " ");
 
@@ -19,7 +23,7 @@ export default function Shopping() {
   const input = useRef(null);
 
   const remembered = useMemo(() => new Map(memory.rows.map((m) => [m.item_name, m.category])), [memory.rows]);
-  const guess = picked ?? remembered.get(norm(text)) ?? "other";
+  const guess = picked ?? remembered.get(norm(text)) ?? matchGrocery(text)?.category ?? "other";
 
   const toBuy = items.rows.filter((i) => !i.is_purchased);
   const bought = items.rows.filter((i) => i.is_purchased);
@@ -30,6 +34,21 @@ export default function Shopping() {
       SHOP_CATEGORIES.map((c) => ({ ...c, items: toBuy.filter((i) => (i.category || "other") === c.key) })).filter((g) => g.items.length),
     [toBuy]
   );
+
+  // הוספה מהירה: קודם מה שקניתם לאחרונה, אחר כך מוצרים נפוצים
+  const quick = useMemo(() => {
+    const onList = new Set(toBuy.map((i) => i.item_name));
+    const seen = new Set();
+    const out = [];
+    const recent = [...memory.rows].sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+    for (const m of [...recent.map((m) => ({ name: m.item_name, category: m.category })), ...COMMON_GROCERIES]) {
+      if (onList.has(m.name) || seen.has(m.name)) continue;
+      seen.add(m.name);
+      out.push({ name: m.name, category: m.category });
+      if (out.length >= 24) break;
+    }
+    return out;
+  }, [memory.rows, toBuy]);
 
   const suggestions = useMemo(() => {
     const q = norm(text);
@@ -95,7 +114,7 @@ export default function Shopping() {
             onClick={() => setCatSheet({ forInput: true })}
             aria-label={`קטגוריה: ${cat.label}`}
           >
-            <span className="text-lg">{cat.icon}</span>
+            <span className="text-lg">{picked ? cat.icon : iconOf(text, guess)}</span>
             <ChevronDown size={14} className="text-muted" />
           </button>
           <input
@@ -118,12 +137,26 @@ export default function Shopping() {
           <div className="hscroll mt-2 -mx-4 px-4">
             {suggestions.map((s) => (
               <button key={s.item_name} type="button" className="chip bg-card" onClick={() => add(s.item_name, s.category)}>
-                {shopCat(s.category).icon} {s.item_name}
+                {iconOf(s.item_name, s.category)} {s.item_name}
               </button>
             ))}
           </div>
         )}
       </form>
+
+      {!text && quick.length > 0 && (
+        <section className="mt-2" aria-label="הוספה מהירה">
+          <p className="text-[13px] font-medium text-muted px-1 mb-2">הוספה מהירה</p>
+          <div className="grid grid-rows-2 grid-flow-col auto-cols-max gap-2 overflow-x-auto overscroll-x-contain -mx-4 px-4 pb-1 [scrollbar-width:none]">
+            {quick.map((q) => (
+              <button key={q.name} type="button" className="chip" onClick={() => add(q.name, q.category)}>
+                <span className="text-[17px] leading-none">{iconOf(q.name, q.category)}</span>
+                {q.name}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {items.loading ? (
         <div className="mt-4">
@@ -196,8 +229,13 @@ function Row({ item, done, onToggle, onCat }) {
       <button type="button" className={`flex-1 text-start py-3 text-[16px] ${done ? "line-through text-muted" : ""}`} onClick={onToggle}>
         {item.item_name}
       </button>
-      <button type="button" className="icon-btn text-lg" onClick={onCat} aria-label="שינוי קטגוריה">
-        {shopCat(item.category).icon}
+      <button
+        type="button"
+        className={`press grid place-items-center w-10 h-10 rounded-xl bg-raised text-[20px] shrink-0 ${done ? "opacity-50 grayscale" : ""}`}
+        onClick={onCat}
+        aria-label={`קטגוריה: ${shopCat(item.category).label} - שינוי`}
+      >
+        {iconOf(item.item_name, item.category)}
       </button>
     </li>
   );

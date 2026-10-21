@@ -1,14 +1,18 @@
 // רשימות קבועות: קטגוריות, סוגים וסטטוסים
 
 export const SHOP_CATEGORIES = [
-  { key: "dairy", label: "חלב", icon: "🥛" },
-  { key: "meat", label: "בשר", icon: "🥩" },
-  { key: "bakery", label: "מאפים", icon: "🍞" },
   { key: "vegetables", label: "ירקות ופירות", icon: "🥬" },
-  { key: "dry", label: "יבשים", icon: "🫘" },
+  { key: "bakery", label: "מאפים ולחם", icon: "🍞" },
+  { key: "dairy", label: "חלב וביצים", icon: "🥛" },
+  { key: "meat", label: "בשר ודגים", icon: "🥩" },
   { key: "frozen", label: "קפואים", icon: "🧊" },
+  { key: "dry", label: "יבשים ואפייה", icon: "🌾" },
+  { key: "canned", label: "שימורים ורטבים", icon: "🥫" },
+  { key: "spices", label: "תבלינים", icon: "🧂" },
+  { key: "snacks", label: "חטיפים ומתוקים", icon: "🍫" },
   { key: "drinks", label: "שתייה", icon: "🥤" },
-  { key: "cleaning", label: "ניקיון", icon: "🧽" },
+  { key: "cleaning", label: "ניקיון ובית", icon: "🧽" },
+  { key: "hygiene", label: "פארם וטיפוח", icon: "🧴" },
   { key: "other", label: "אחר", icon: "📦" },
 ];
 export const shopCat = (k) => SHOP_CATEGORIES.find((c) => c.key === k) ?? SHOP_CATEGORIES.at(-1);
