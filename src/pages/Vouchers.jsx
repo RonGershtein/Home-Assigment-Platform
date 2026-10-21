@@ -24,6 +24,12 @@ const TONE = {
   used: "text-muted",
 };
 
+const EMPTY = {
+  active: { icon: "🎟️", title: "אין שוברים בתוקף", text: "מוסיפים שובר עם תאריך תפוגה ומקבלים תזכורת חזותית לפני שהוא פג." },
+  expired: { icon: "⌛", title: "אף שובר לא פג", text: "שוברים שעבר התוקף שלהם בלי שנוצלו יעברו לכאן." },
+  used: { icon: "✅", title: "עוד לא ניצלתם שוברים", text: 'לוחצים "סימון כמנוצל" על שובר והוא עובר לכאן.' },
+};
+
 export const BackLink = () => (
   <Link to="/more" className="press flex items-center gap-0.5 text-[16px] text-accent-text font-medium -ms-1 h-10">
     <ChevronRight size={22} /> עוד
@@ -37,23 +43,25 @@ export default function Vouchers() {
   const [editing, setEditing] = useState(null);
 
   const active = vouchers.rows.filter((v) => v.status !== "used" && stateOf(v) !== "expired");
-  const past = vouchers.rows.filter((v) => v.status === "used" || stateOf(v) === "expired");
+  const expired = vouchers.rows.filter((v) => stateOf(v) === "expired");
+  const used = vouchers.rows.filter((v) => v.status === "used");
+  const byView = { active, expired, used };
   const activeValue = active.reduce((s, v) => s + (v.voucher_type === "cash" ? Number(v.amount) || 0 : 0), 0);
   const soonCount = active.filter((v) => stateOf(v) === "soon").length;
 
   const list = useMemo(() => {
     const term = q.trim();
-    const base = (view === "active" ? active : past).filter(
+    const base = byView[view].filter(
       (v) => !term || [v.title, v.notes, v.gift_description, v.voucher_code].some((f) => f?.includes(term))
     );
     // הקרוב לפוג ראשון; בלי תאריך - בסוף
     return base.sort((a, b) => {
-      if (view === "past") return (b.expiry_date || "").localeCompare(a.expiry_date || "");
+      if (view !== "active") return (b.expiry_date || "").localeCompare(a.expiry_date || "");
       if (!a.expiry_date) return 1;
       if (!b.expiry_date) return -1;
       return a.expiry_date.localeCompare(b.expiry_date);
     });
-  }, [view, q, active, past]);
+  }, [view, q, active, expired, used]);
 
   return (
     <Page title="שוברים" back={<BackLink />}>
@@ -73,7 +81,8 @@ export default function Vouchers() {
         onChange={setView}
         options={[
           { value: "active", label: "בתוקף", count: active.length },
-          { value: "past", label: "נוצלו / פגו", count: past.length },
+          { value: "expired", label: "פגו", count: expired.length },
+          { value: "used", label: "נוצלו", count: used.length },
         ]}
       />
       {vouchers.rows.length > 6 && (
@@ -86,7 +95,7 @@ export default function Vouchers() {
         {vouchers.loading ? (
           <Skeletons n={4} h={96} />
         ) : list.length === 0 ? (
-          <Empty icon="🎟️" title={view === "active" ? "אין שוברים בתוקף" : "אין כאן כלום"} text="מוסיפים שובר עם תאריך תפוגה ומקבלים תזכורת חזותית לפני שהוא פג." />
+          <Empty {...EMPTY[view]} />
         ) : (
           <ul className="space-y-2 stagger">
             {list.map((v) => (
