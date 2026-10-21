@@ -51,11 +51,11 @@ export default function Home() {
 
       {expiring.length > 0 && (
         <>
-          <SectionTitle right={<Link to="/vouchers" className="text-[14px] text-accent-text font-medium">הכל</Link>}>🎟️ שוברים שפגים בקרוב</SectionTitle>
+          <SectionTitle right={<Link to="/vouchers" state={BACK} className="text-[14px] text-accent-text font-medium">הכל</Link>}>🎟️ שוברים שפגים בקרוב</SectionTitle>
           <ul className="card divide-y overflow-hidden">
             {expiring.slice(0, 4).map((v) => (
               <li key={v.id}>
-                <Link to="/vouchers" className="press flex items-center gap-3 px-4 min-h-[56px]">
+                <Link to="/vouchers" state={BACK} className="press flex items-center gap-3 px-4 min-h-[56px]">
                   <span className="flex-1 min-w-0 text-[15px] font-medium truncate">{v.title}</span>
                   {v.voucher_type === "cash" && v.amount != null && <span className="num text-[15px] text-muted">{money(v.amount)}</span>}
                   <span className={`text-[13px] font-medium ${v.d <= 7 ? "text-crit" : "text-warn"}`}>{relDays(v.d)}</span>
@@ -68,13 +68,13 @@ export default function Home() {
 
       {dueTasks.length > 0 && (
         <>
-          <SectionTitle right={<Link to="/tasks" className="text-[14px] text-accent-text font-medium">הכל</Link>}>📅 השבוע</SectionTitle>
+          <SectionTitle right={<Link to="/tasks" state={BACK} className="text-[14px] text-accent-text font-medium">הכל</Link>}>📅 השבוע</SectionTitle>
           <ul className="card divide-y overflow-hidden">
             {dueTasks.slice(0, 4).map((t) => {
               const d = daysUntil(t.due_date);
               return (
                 <li key={t.id}>
-                  <Link to="/tasks" className="press flex items-center gap-3 px-4 min-h-[56px]">
+                  <Link to="/tasks" state={BACK} className="press flex items-center gap-3 px-4 min-h-[56px]">
                     <span className="flex-1 min-w-0 text-[15px] font-medium truncate">{t.title}</span>
                     <span className={`text-[13px] font-medium ${d < 0 ? "text-crit" : "text-warn"}`}>{relDays(d)}</span>
                   </Link>
@@ -92,7 +92,7 @@ export default function Home() {
           ["/gifts", "💌", "מתנות חתונה"],
           ["/recipes", "🍳", "מתכונים"],
         ].map(([to, icon, label]) => (
-          <Link key={to} to={to} className="press card flex flex-col items-center gap-2 py-4 text-[14px] font-medium">
+          <Link key={to} to={to} state={BACK} className="press card flex flex-col items-center gap-2 py-4 text-[14px] font-medium">
             <span className="text-2xl">{icon}</span>
             {label}
           </Link>
@@ -102,9 +102,11 @@ export default function Home() {
   );
 }
 
+const BACK = { back: "בית" };
+
 function Tile({ to, icon, label, value, hint, loading }) {
   return (
-    <Link to={to} className="press card p-4 flex flex-col min-h-[128px]">
+    <Link to={to} state={BACK} className="press card p-4 flex flex-col min-h-[128px]">
       <div className="flex items-center justify-between">
         <span className="text-xl">{icon}</span>
         <ChevronLeft size={16} className="text-muted" />

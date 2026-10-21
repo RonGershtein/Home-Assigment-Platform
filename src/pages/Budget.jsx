@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Repeat, Settings2 } from "lucide-react";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { toast } from "sonner";
-import { Page } from "../components/Shell";
+import { BackButton, Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
 import { DeleteButton, Empty, Fab, Field, SectionTitle, Segmented, Skeletons } from "../components/ui";
 import { useTable } from "../hooks/useTable";
@@ -82,6 +82,7 @@ export default function Budget() {
 
   return (
     <Page
+      back={<BackButton />}
       title="כסף"
       action={
         <button type="button" className="icon-btn" onClick={() => setManaging(true)} aria-label="קטגוריות ותקציב">

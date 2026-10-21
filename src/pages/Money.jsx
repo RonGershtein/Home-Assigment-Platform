@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Page } from "../components/Shell";
+import { BackButton, Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
 import { DeleteButton, Empty, Fab, Field, SectionTitle, Segmented, Skeletons } from "../components/ui";
 import { useTable } from "../hooks/useTable";
@@ -11,11 +11,12 @@ import { compactMoney, daysUntil, fmtDate, money, MONTHS, relDays, todayStr, toN
 
 export function MoneySwitch({ value }) {
   const nav = useNavigate();
+  const { state } = useLocation();
   return (
     <Segmented
       className="mb-4"
       value={value}
-      onChange={(v) => nav(v === "accounts" ? "/money" : "/budget", { replace: true })}
+      onChange={(v) => nav(v === "accounts" ? "/money" : "/budget", { replace: true, state })}
       options={[
         { value: "accounts", label: "חסכונות וחשבונות" },
         { value: "budget", label: "הכנסות והוצאות" },
@@ -66,7 +67,7 @@ export default function Money() {
   }
 
   return (
-    <Page title="כסף">
+    <Page title="כסף" back={<BackButton />}>
       <MoneySwitch value="accounts" />
 
       <div className="hero p-5">

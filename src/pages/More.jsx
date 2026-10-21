@@ -21,7 +21,7 @@ export default function More({ user }) {
       <ul className="card divide-y overflow-hidden">
         {LINKS.map((l) => (
           <li key={l.to}>
-            <Link to={l.to} className="press flex items-center gap-3 px-4 min-h-[64px]">
+            <Link to={l.to} state={{ back: "עוד" }} className="press flex items-center gap-3 px-4 min-h-[64px]">
               <span className="grid place-items-center w-10 h-10 rounded-full bg-raised text-xl">{l.icon}</span>
               <span className="flex-1">
                 <span className="block text-[16px] font-medium">{l.label}</span>

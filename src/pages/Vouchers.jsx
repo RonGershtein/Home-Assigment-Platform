@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
-import { ChevronRight, Copy, ExternalLink, Plus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Copy, ExternalLink, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { Page } from "../components/Shell";
+import { BackButton, Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
 import { DeleteButton, Empty, Fab, Field, SearchField, Segmented, Skeletons } from "../components/ui";
 import { useTable } from "../hooks/useTable";
@@ -30,11 +29,7 @@ const EMPTY = {
   used: { icon: "✅", title: "עוד לא ניצלתם שוברים", text: 'לוחצים "סימון כמנוצל" על שובר והוא עובר לכאן.' },
 };
 
-export const BackLink = () => (
-  <Link to="/more" className="press flex items-center gap-0.5 text-[16px] text-accent-text font-medium -ms-1 h-10">
-    <ChevronRight size={22} /> עוד
-  </Link>
-);
+export const BackLink = () => <BackButton fallback={{ to: "/more", label: "עוד" }} />;
 
 export default function Vouchers() {
   const vouchers = useTable("vouchers");

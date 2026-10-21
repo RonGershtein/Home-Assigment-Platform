@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { House, ShoppingCart, ListChecks, Wallet, LayoutGrid } from "lucide-react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { ChevronRight, House, ShoppingCart, ListChecks, Wallet, LayoutGrid } from "lucide-react";
 
 const TABS = [
   { to: "/", label: "בית", icon: House, end: true },
@@ -36,6 +36,26 @@ export function TabBar() {
         })}
       </div>
     </nav>
+  );
+}
+
+// חזרה למסך שממנו הגענו (קישורים מהבית / "עוד" שומרים את שמו ב-state).
+// בלי state: אם יש fallback - קישור אליו, אחרת אין כפתור (הגענו מסרגל הטאבים)
+export function BackButton({ fallback }) {
+  const { state } = useLocation();
+  const nav = useNavigate();
+  const cls = "press flex items-center gap-0.5 text-[16px] text-accent-text font-medium -ms-1 h-10";
+  if (state?.back)
+    return (
+      <button type="button" className={cls} onClick={() => nav(-1)}>
+        <ChevronRight size={22} /> {state.back}
+      </button>
+    );
+  if (!fallback) return null;
+  return (
+    <Link to={fallback.to} className={cls}>
+      <ChevronRight size={22} /> {fallback.label}
+    </Link>
   );
 }
 
