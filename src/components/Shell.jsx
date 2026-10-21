@@ -1,0 +1,78 @@
+import { useEffect, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { House, ShoppingCart, ListChecks, Wallet, LayoutGrid } from "lucide-react";
+
+const TABS = [
+  { to: "/", label: "בית", icon: House, end: true },
+  { to: "/shopping", label: "קניות", icon: ShoppingCart },
+  { to: "/tasks", label: "מטלות", icon: ListChecks },
+  { to: "/money", label: "כסף", icon: Wallet, match: ["/money", "/budget"] },
+  { to: "/more", label: "עוד", icon: LayoutGrid, match: ["/more", "/vouchers", "/gifts", "/recipes"] },
+];
+
+export function TabBar() {
+  const { pathname } = useLocation();
+  return (
+    <nav
+      className="fixed bottom-0 inset-x-0 z-40 bg-bg/80 backdrop-blur-xl border-t"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      aria-label="ניווט ראשי"
+    >
+      <div className="mx-auto max-w-xl grid grid-cols-5 h-[var(--tabbar-h)]">
+        {TABS.map(({ to, label, icon: Icon, end, match }) => {
+          const active = match ? match.some((m) => pathname.startsWith(m)) : end ? pathname === to : pathname.startsWith(to);
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              className={`press no-select flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-200 ${active ? "text-fg" : "text-muted"}`}
+            >
+              <span className={`grid place-items-center h-8 w-14 rounded-full transition-colors duration-200 ${active ? "bg-accent text-accent-ink" : ""}`}>
+                <Icon size={20} strokeWidth={active ? 2.4 : 2} />
+              </span>
+              {label}
+            </NavLink>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+// כותרת גדולה בסגנון iOS; בגלילה מופיעה כותרת קומפקטית דביקה
+export function Page({ title, subtitle, action, children, back }) {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setCompact(window.scrollY > 48);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return (
+    <div className="mx-auto max-w-xl px-4 pb-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+96px)]">
+      <div
+        className={`fixed top-0 inset-x-0 z-30 transition-[opacity,transform] duration-200 ease-out ${compact ? "opacity-100" : "opacity-0 -translate-y-1 pointer-events-none"}`}
+        aria-hidden={!compact}
+      >
+        <div className="bg-bg/80 backdrop-blur-xl border-b" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+          <div className="mx-auto max-w-xl h-12 px-4 grid grid-cols-[1fr_auto_1fr] items-center">
+            <div>{back}</div>
+            <p className="text-[16px] font-semibold text-center truncate">{title}</p>
+            <div className="flex justify-end">{action}</div>
+          </div>
+        </div>
+      </div>
+
+      <header className="pt-[calc(env(safe-area-inset-top)+12px)] mb-4">
+        <div className="flex items-center justify-between h-10">
+          <div>{back}</div>
+          <div className="flex items-center gap-1">{action}</div>
+        </div>
+        <h1 className="text-[34px] leading-[1.1] font-bold tracking-tight mt-1">{title}</h1>
+        {subtitle && <p className="text-muted text-[15px] mt-1">{subtitle}</p>}
+      </header>
+      {children}
+    </div>
+  );
+}

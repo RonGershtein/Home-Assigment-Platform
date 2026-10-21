@@ -1,0 +1,311 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== שפת העיצוב =====
+   משטחים שטוחים שנבדלים במדרגות גוון בלבד, צבע הדגשה אחד (ליים) לפעולות,
+   וצבעי סטטוס (ירוק / כתום / אדום) לנתונים בלבד. מספרים גדולים וטבלאיים.
+   תנועה לפי Emil Kowalski: ease-out חזק, משכים קצרים, משוב לחיצה ב-scale. */
+:root {
+  color-scheme: light;
+  --bg: 60 9% 95.5%;
+  --card: 0 0% 100%;
+  --raised: 60 6% 92%;
+  --hover: 60 5% 88%;
+  --line: 60 5% 86%;
+  --fg: 240 10% 8%;
+  --muted: 240 4% 42%;
+  --accent: 78 88% 56%;
+  --accent-ink: 80 60% 8%;
+  --accent-text: 84 75% 27%;
+  --good: 152 70% 30%;
+  --warn: 32 95% 38%;
+  --crit: 2 72% 48%;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --tabbar-h: 64px;
+  --chart-grid: hsl(60 5% 88%);
+  --chart-tick: hsl(240 4% 42%);
+
+  /* שדה ה-hero: דיו כהה בשתי הערכות (רגע המותג, כמו ב-skyops), עם קו ליים יחיד */
+  --hero: 240 10% 9%;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: 240 6% 6%;
+  --card: 240 5% 10%;
+  --raised: 240 5% 14%;
+  --hover: 240 5% 18%;
+  --line: 240 5% 19%;
+  --fg: 60 10% 96%;
+  --muted: 240 5% 63%;
+  --accent: 78 88% 59%;
+  --accent-ink: 80 60% 8%;
+  --accent-text: 78 88% 62%;
+  --good: 152 60% 55%;
+  --warn: 40 95% 62%;
+  --crit: 4 88% 68%;
+  --chart-grid: hsl(240 5% 17%);
+  --chart-tick: hsl(240 5% 63%);
+  --hero: 80 14% 12%;
+}
+
+/* ===== hero: המספר המרכזי של המסך =====
+   הטוקנים של הערכה הכהה מוגדרים מחדש בתוכו, כך ש-text-good / text-muted / border עובדים בלי מחלקות נוספות */
+.hero {
+  --fg: 60 10% 96%;
+  --muted: 240 5% 66%;
+  --line: 240 6% 22%;
+  --good: 152 60% 58%;
+  --warn: 40 95% 62%;
+  --crit: 4 88% 70%;
+  --raised: 240 6% 17%;
+  --chart-grid: hsl(0 0% 100% / 0.08);
+  --chart-tick: hsl(240 5% 66%);
+  background-color: hsl(var(--hero));
+  color: hsl(var(--fg));
+  border-radius: 22px;
+  box-shadow: inset 0 1px 0 hsl(var(--accent) / 0.55);
+  border-color: hsl(0 0% 100% / 0.1);
+}
+.hero * {
+  border-color: hsl(0 0% 100% / 0.1);
+}
+
+* {
+  border-color: hsl(var(--line));
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+  background-color: hsl(var(--bg));
+}
+
+body {
+  background-color: hsl(var(--bg));
+  color: hsl(var(--fg));
+  font-family: "Rubik", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+/* iOS מגדיל את הדף בפוקוס על שדה קטן מ-16px */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+button,
+a,
+[role="button"],
+label {
+  touch-action: manipulation;
+}
+
+button,
+[role="button"],
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 2px;
+}
+
+::selection {
+  background: hsl(var(--accent) / 0.35);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ===== משוב לחיצה: כל דבר לחיץ מתכווץ קלות ברגע הנגיעה ===== */
+.press {
+  transition: transform 140ms var(--ease-out), background-color 150ms ease, opacity 150ms ease;
+}
+.press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* ===== כפתורים ===== */
+.btn {
+  @apply press inline-flex items-center justify-center gap-2 rounded-full px-5 h-12 font-medium text-[15px] whitespace-nowrap disabled:opacity-40;
+}
+.btn-primary {
+  @apply bg-accent text-accent-ink font-semibold;
+}
+.btn-soft {
+  @apply bg-raised text-fg;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn-soft:hover:not(:disabled) {
+    background-color: hsl(var(--hover));
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
+}
+.btn-danger {
+  @apply bg-crit/10 text-crit;
+}
+.icon-btn {
+  @apply press inline-grid place-items-center rounded-full w-10 h-10 text-muted shrink-0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .icon-btn:hover {
+    background-color: hsl(var(--raised));
+    color: hsl(var(--fg));
+  }
+}
+
+/* ===== שדות ===== */
+.field {
+  @apply w-full rounded-2xl bg-raised px-4 h-12 text-fg placeholder:text-muted/80 outline-none;
+  transition: box-shadow 150ms ease;
+}
+textarea.field {
+  @apply h-auto py-3 leading-relaxed;
+}
+.field:focus {
+  box-shadow: inset 0 0 0 2px hsl(var(--accent));
+}
+.label {
+  @apply block text-[13px] font-medium text-muted mb-1.5 px-1;
+}
+input[type="date"].field {
+  min-height: 3rem;
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: right;
+}
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: right;
+}
+
+.card {
+  @apply bg-card rounded-card;
+}
+
+/* ===== כניסה מדורגת לרשימות (פעם אחת, בטעינה) ===== */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.rise {
+  animation: rise 280ms var(--ease-out) both;
+}
+.stagger > * {
+  animation: rise 280ms var(--ease-out) both;
+}
+.stagger > *:nth-child(2) { animation-delay: 25ms; }
+.stagger > *:nth-child(3) { animation-delay: 50ms; }
+.stagger > *:nth-child(4) { animation-delay: 75ms; }
+.stagger > *:nth-child(5) { animation-delay: 100ms; }
+.stagger > *:nth-child(n + 6) { animation-delay: 120ms; }
+
+/* פס התקדמות שגדל מנקודת ההתחלה (ימין ב-RTL) - transform בלבד */
+@keyframes grow {
+  from {
+    transform: scaleX(0.04);
+  }
+}
+.bar {
+  transform-origin: right;
+  animation: grow 600ms var(--ease-out) both;
+}
+
+/* פריט חדש ברשימה מופיע מהגובה שלו (אינטראקטיבי - transition, לא keyframes) */
+.enter {
+  transition: opacity 260ms var(--ease-out), transform 260ms var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* סימון וי: עיגול שמתמלא */
+.check {
+  @apply press grid place-items-center w-7 h-7 rounded-full shrink-0;
+  box-shadow: inset 0 0 0 2px hsl(var(--muted) / 0.55);
+  transition: background-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out), transform 140ms var(--ease-out);
+}
+.check[data-on="true"] {
+  background-color: hsl(var(--accent));
+  box-shadow: inset 0 0 0 2px hsl(var(--accent));
+  color: hsl(var(--accent-ink));
+}
+.check svg {
+  transition: opacity 160ms ease, transform 220ms var(--ease-out);
+  opacity: 0;
+  transform: scale(0.6);
+}
+.check[data-on="true"] svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ===== שלד טעינה ===== */
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.skeleton {
+  border-radius: 22px;
+  background: linear-gradient(90deg, hsl(var(--card)) 0%, hsl(var(--raised)) 50%, hsl(var(--card)) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* ===== גלילה אופקית (צ'יפים) ===== */
+.hscroll {
+  @apply flex gap-2 overflow-x-auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 16px;
+}
+.hscroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  @apply press inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full bg-card text-[14px] font-medium text-muted whitespace-nowrap shrink-0;
+}
+.chip[data-on="true"] {
+  @apply bg-fg text-bg;
+}
+
+/* ===== tooltip של recharts ===== */
+.recharts-tooltip-wrapper {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .stagger > *,
+  .bar {
+    animation: none;
+  }
+  .press:active:not(:disabled) {
+    transform: none;
+  }
+}

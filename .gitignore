@@ -1,0 +1,7 @@
+node_modules
+dist
+.env
+.env.local
+.vercel
+# הנתונים האמיתיים מ-Base44 - לא נכנסים ל-git
+data/
