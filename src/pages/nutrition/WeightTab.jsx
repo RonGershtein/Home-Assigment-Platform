@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Scale, Flame, Target, Users, Eye, HousePlus, Pencil } from "lucide-react";
+import { Scale, Flame, Target, Users, Eye, HousePlus, Pencil, Flag, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import Sheet from "../../components/Sheet";
 import WeightInput from "../../components/WeightInput";
@@ -23,6 +23,7 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
   const [range, setRange] = useState(30);
   const [who, setWho] = useState("me");
   const [editing, setEditing] = useState(null);
+  const [goalOpen, setGoalOpen] = useState(false);
   const today = todayStr();
 
   const mine = useMemo(() => weights.rows.filter((e) => e.user_id === me).sort((a, b) => a.day.localeCompare(b.day)), [weights.rows, me]);
@@ -37,6 +38,9 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
   const trend = weeklyTrend(mine);
   const goal = myProfile?.goal_weight_kg != null ? Number(myProfile.goal_weight_kg) : null;
   const eta = etaToGoal(current, goal, trend);
+  const start = mine[0] ? Number(mine[0].weight_kg) : null;
+  // התקדמות ליעד: מהשקילה הראשונה ועד היעד (0..1), null כשאין ממה לחשב
+  const progress = goal != null && current != null && start != null && Math.abs(start - goal) >= 0.1 ? Math.min(1, Math.max(0, (start - current) / (start - goal))) : null;
   const b = bmi(current, Number(myProfile?.height_cm));
   const band = bmiBand(b);
   const days = streak(mine, today);
@@ -76,6 +80,30 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
       toast.success(id || existing ? "המשקל עודכן" : "נרשם ✓");
       setEditing(null);
     } catch {}
+  };
+
+  // יעד משקל: נשמר בפרופיל, וכיוון המטרה (לרדת/לעלות) נגזר מהמשקל הנוכחי
+  const saveGoal = async (value) => {
+    const w = Math.round(Number(value) * 10) / 10;
+    if (!(w > 20 && w < 400)) return toast.error("משקל יעד לא תקין");
+    const patch = { goal_weight_kg: w };
+    if (current != null && Math.abs(w - current) >= 0.5) patch.goal = w < current ? "lose" : "gain";
+    try {
+      await saveProfile(patch);
+      toast.success(goal == null ? "היעד נקבע 🎯" : "היעד עודכן");
+      setGoalOpen(false);
+    } catch (e) {
+      toast.error(e.message || "לא נשמר");
+    }
+  };
+  const removeGoal = async () => {
+    try {
+      await saveProfile({ goal_weight_kg: null });
+      toast.success("היעד הוסר");
+      setGoalOpen(false);
+    } catch (e) {
+      toast.error(e.message || "לא נשמר");
+    }
   };
 
   const history = useMemo(
@@ -149,7 +177,9 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
                   labelFormatter={(_, p) => (p?.[0]?.payload?.day ? fmtDate(p[0].payload.day) : "")}
                   formatter={(v, name) => [fmtKg(v), name === "w" ? "משקל" : name === "avg" ? "ממוצע 7 ימים" : nameOf(name)]}
                 />
-                {goal != null && <ReferenceLine y={goal} stroke="var(--chart-tick)" strokeDasharray="4 4" label={{ value: "יעד", position: "insideTopRight", fill: "var(--chart-tick)", fontSize: 11 }} />}
+                {goal != null && (
+                  <ReferenceLine y={goal} stroke="hsl(var(--good))" strokeWidth={1.5} strokeDasharray="5 4" ifOverflow="extendDomain" label={{ value: `יעד ${fmt1(goal)}`, position: "insideTopRight", fill: "hsl(var(--good))", fontSize: 11, fontWeight: 600 }} />
+                )}
                 {who === "me" ? (
                   <>
                     <Area type="monotone" dataKey="w" stroke="hsl(var(--accent))" strokeWidth={1.5} strokeOpacity={0.55} fill="url(#wfill)" dot={{ r: 2.5, fill: "hsl(var(--accent))", strokeWidth: 0 }} activeDot={{ r: 5 }} isAnimationActive={false} />
@@ -193,6 +223,11 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
           </div>
         )}
       </div>
+
+      {/* יעד אישי: קביעה, עריכה והסרה */}
+      {who === "me" && (
+        <GoalCard goal={goal} current={current} progress={progress} eta={eta} onOpen={() => setGoalOpen(true)} />
+      )}
 
       {/* רישום מהיר של היום */}
       {who === "me" && (
@@ -246,6 +281,10 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
         </ul>
       )}
 
+      <Sheet open={goalOpen} onClose={() => setGoalOpen(false)} title={goal == null ? "יעד משקל" : "עריכת היעד"}>
+        {goalOpen && <GoalForm key={goal ?? "new"} goal={goal} current={current} onSave={saveGoal} onRemove={removeGoal} />}
+      </Sheet>
+
       <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? "עריכת שקילה" : "שקילה"}>
         {editing && (
           <EditForm
@@ -260,6 +299,86 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
         )}
       </Sheet>
     </>
+  );
+}
+
+// כרטיס היעד: בלי יעד - כפתור להגדרה; עם יעד - כמה נשאר, התקדמות ותחזית. נגיעה פותחת עריכה
+function GoalCard({ goal, current, progress, eta, onOpen }) {
+  if (goal == null)
+    return (
+      <button type="button" onClick={onOpen} className="press card mt-3 w-full flex items-center gap-3 p-4 text-start border-2 border-dashed border-line bg-transparent">
+        <span className="grid place-items-center w-10 h-10 rounded-full bg-accent/15 text-accent-text shrink-0">
+          <Flag size={19} />
+        </span>
+        <span className="flex-1">
+          <span className="block text-[15px] font-medium">הגדרת יעד משקל</span>
+          <span className="block text-[13px] text-muted">היעד יופיע כקו על הגרף, ותראו כמה נשאר</span>
+        </span>
+        <ChevronLeft size={18} className="text-muted" />
+      </button>
+    );
+  const left = current != null ? goal - current : null;
+  const reached = left != null && Math.abs(left) < 0.1;
+  return (
+    <button type="button" onClick={onOpen} className="press card mt-3 w-full p-4 text-start rise">
+      <span className="flex items-center gap-3">
+        <span className={`grid place-items-center w-10 h-10 rounded-full shrink-0 ${reached ? "bg-good/15 text-good" : "bg-accent/15 text-accent-text"}`}>
+          <Flag size={19} />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[15px] font-medium">
+            יעד: <span className="num">{fmtKg(goal)}</span>
+          </span>
+          <span className="block text-[13px] text-muted truncate">
+            {left == null ? "רושמים שקילה כדי לראות כמה נשאר" : reached ? "הגעת ליעד! 🎉" : `עוד ${fmtKg(Math.abs(left))} ${left < 0 ? "לרדת" : "לעלות"}${eta ? ` · בקצב הזה: ${etaLabel(eta)}` : ""}`}
+          </span>
+        </span>
+        <Pencil size={16} className="text-muted shrink-0" />
+      </span>
+      {progress != null && (
+        <span className="block mt-3 h-2 rounded-full bg-raised overflow-hidden" dir="ltr" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+          <span className={`block h-full rounded-full ${reached ? "bg-good" : "bg-accent"}`} style={{ width: `${Math.max(4, progress * 100)}%`, transition: "width 500ms var(--ease-out)" }} />
+        </span>
+      )}
+    </button>
+  );
+}
+
+function GoalForm({ goal, current, onSave, onRemove }) {
+  const [w, setW] = useState(() => (goal ?? (current != null ? Math.round(current - 5) : 70)).toFixed(1));
+  const [saving, setSaving] = useState(false);
+  const diff = current != null && Number(w) > 20 ? Number(w) - current : null;
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        try {
+          await onSave(w);
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <p className="text-[13px] text-muted text-center">
+        {current != null ? `המשקל הנוכחי: ${fmtKg(current)}` : "המשקל שרוצים להגיע אליו"}
+        {diff != null && Math.abs(diff) >= 0.1 && (
+          <>
+            {" · "}
+            <span className="num text-fg font-medium">{fmtKg(Math.abs(diff))}</span> {diff < 0 ? "לרדת" : "לעלות"}
+          </>
+        )}
+      </p>
+      <WeightInput value={w} onChange={setW} autoFocus={goal == null} />
+      <p className="text-[12px] text-muted text-center">אפשר לשנות או להסיר את היעד בכל שלב</p>
+      <div className="flex gap-2 pt-2">
+        <button type="submit" className="btn btn-primary flex-1" disabled={saving || !(Number(w) > 20)}>
+          <Target size={18} /> {goal == null ? "קביעת יעד" : "שמירה"}
+        </button>
+        {goal != null && <DeleteButton onConfirm={onRemove} label="הסרה" />}
+      </div>
+    </form>
   );
 }
 
