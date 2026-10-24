@@ -1,23 +1,29 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChefHat, ChevronLeft, Gift, ListChecks, ShoppingCart, Ticket } from "lucide-react";
+import { ChefHat, ChevronLeft, Gift, ListChecks, Scale, ShoppingCart, Ticket, X } from "lucide-react";
+import { toast } from "sonner";
+import WeightInput from "../components/WeightInput";
+import { fmtKg } from "../lib/nutrition";
 import { Page } from "../components/Shell";
 import ThemeToggle from "../components/ThemeToggle";
 import { CheckCircle, SectionTitle, useLeaving } from "../components/ui";
 import { useTable } from "../hooks/useTable";
 import { LONG_TERM_KINDS, shopCat } from "../lib/catalog";
 import { matchGrocery } from "../lib/groceries";
-import { compactMoney, daysUntil, greeting, money, monthKey, monthLabel, relDays } from "../lib/format";
+import { compactMoney, daysUntil, greeting, money, monthKey, monthLabel, relDays, todayStr } from "../lib/format";
 
 const BACK = { back: "בית" };
 const sum = (rows) => rows.reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
-export default function Home() {
+export default function Home({ user }) {
   const shopping = useTable("shopping_items");
   const tasks = useTable("tasks");
   const vouchers = useTable("vouchers");
   const tx = useTable("transactions");
   const accounts = useTable("accounts");
+  const weights = useTable("weight_entries");
+  const nutrition = useTable("nutrition_profiles");
+  const me = user?.id ?? "demo";
 
   const [leavingIds, leave] = useLeaving();
   const toBuy = shopping.rows.filter((i) => !i.is_purchased);
@@ -57,6 +63,7 @@ export default function Home() {
 
   return (
     <Page title={greeting()} subtitle={date} action={<ThemeToggle />}>
+      <WeightPrompt me={me} weights={weights} profile={nutrition.rows.find((p) => p.user_id === me)} loading={weights.loading || nutrition.loading} />
       <Link to="/budget" state={BACK} className="press hero block p-5 rise">
         <div className="flex items-center justify-between text-[13px] text-muted">
           <span>{inc ? "נשאר החודש" : "הוצאות החודש"}</span>
@@ -158,6 +165,7 @@ export default function Home() {
           ["/vouchers", Ticket, "שוברים", `${vouchers.rows.filter((v) => v.status !== "used" && (daysUntil(v.expiry_date) ?? 0) >= 0).length} בתוקף`],
           ["/gifts", Gift, "מתנות ואירועים", null],
           ["/recipes", ChefHat, "מתכונים", null],
+          ["/nutrition", Scale, "תזונה ומשקל", null],
         ].map(([to, Icon, label, hint]) => (
           <li key={to}>
             <Link to={to} state={BACK} className="press flex items-center gap-3 px-4 min-h-[56px]">
@@ -179,5 +187,81 @@ function SeeAll({ to, label }) {
       {label || "הכל"}
       <ChevronLeft size={16} />
     </Link>
+  );
+}
+
+// שאלת המשקל היומית: מופיעה עד שרושמים (או דוחים להיום). כבויה דרך "תזונה ← שאלת המשקל במסך הבית"
+const DISMISS_KEY = "weight-prompt-dismissed";
+function WeightPrompt({ me, weights, profile, loading }) {
+  const today = todayStr();
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(DISMISS_KEY) === today;
+    } catch {
+      return false;
+    }
+  });
+  const mine = useMemo(() => weights.rows.filter((e) => e.user_id === me).sort((a, b) => b.day.localeCompare(a.day)), [weights.rows, me]);
+  const last = mine[0] ? Number(mine[0].weight_kg) : null;
+  const [w, setW] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(null);
+
+  if (loading || dismissed || profile?.daily_prompt === false) return null;
+  const todayEntry = mine.find((e) => e.day === today);
+  if (todayEntry && !saved) return null;
+
+  const value = w === "" ? (last ?? 70).toFixed(1) : w;
+  const dismiss = () => {
+    try {
+      localStorage.setItem(DISMISS_KEY, today);
+    } catch {}
+    setDismissed(true);
+  };
+  const save = async () => {
+    const n = Math.round(Number(value) * 10) / 10;
+    if (!(n > 20 && n < 400)) return toast.error("משקל לא תקין");
+    setSaving(true);
+    try {
+      await weights.create({ user_id: me, day: today, weight_kg: n, note: "" });
+      setSaved({ n, delta: last != null ? n - last : null });
+    } catch {
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (saved)
+    return (
+      <Link to="/nutrition" state={BACK} className="press card flex items-center gap-3 p-4 mb-4 rise">
+        <span className="grid place-items-center w-10 h-10 rounded-full bg-accent text-accent-ink shrink-0">
+          <Scale size={19} />
+        </span>
+        <span className="flex-1">
+          <span className="block text-[15px] font-medium">נרשם: {fmtKg(saved.n)}</span>
+          <span className="block text-[13px] text-muted">{saved.delta == null ? "שקילה ראשונה. מכאן מתחיל הגרף" : Math.abs(saved.delta) < 0.05 ? "בדיוק כמו בפעם הקודמת" : `${saved.delta < 0 ? "▼" : "▲"} ${fmtKg(Math.abs(saved.delta))} מהשקילה הקודמת · לגרף`}</span>
+        </span>
+        <ChevronLeft size={18} className="text-muted" />
+      </Link>
+    );
+
+  return (
+    <div className="card p-4 mb-4 rise">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[16px] font-semibold">כמה את/ה שוקל/ת היום?</p>
+          <p className="text-[13px] text-muted mt-0.5">{last != null ? `בפעם הקודמת: ${fmtKg(last)}` : "שקילה ראשונה - הכי טוב בבוקר"}</p>
+        </div>
+        <button type="button" className="icon-btn -me-2 -mt-1" onClick={dismiss} aria-label="לא היום">
+          <X size={18} />
+        </button>
+      </div>
+      <div className="mt-3">
+        <WeightInput value={value} onChange={setW} size="sm" />
+      </div>
+      <button type="button" className="btn btn-primary w-full mt-4 h-11" disabled={saving} onClick={save}>
+        שמירה
+      </button>
+    </div>
   );
 }

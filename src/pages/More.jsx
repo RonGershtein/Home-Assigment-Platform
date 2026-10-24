@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ChefHat, ChevronLeft, Gift, Landmark, LogOut, Receipt, RotateCcw, Ticket } from "lucide-react";
+import { ChefHat, ChevronLeft, Gift, Landmark, LogOut, Receipt, RotateCcw, Scale, Ticket } from "lucide-react";
 import { Page } from "../components/Shell";
 import ThemeToggle from "../components/ThemeToggle";
 import { NotificationSettings, ProfileName } from "../components/Settings";
@@ -9,6 +9,7 @@ import { resetDemo } from "../lib/localBackend";
 import { isDemoMode } from "../lib/supabase";
 
 const LINKS = [
+  { to: "/nutrition", icon: Scale, label: "תזונה", hint: "משקל של שנינו, יומן אוכל, BMI ויעד קלוריות" },
   { to: "/vouchers", icon: Ticket, label: "שוברים", hint: "לפי תוקף, קודים ואתרים" },
   { to: "/gifts", icon: Gift, label: "מתנות ואירועים", hint: "מה קיבלנו בחתונה ומה נתנו באירועים" },
   { to: "/recipes", icon: ChefHat, label: "מתכונים", hint: "לינקים ומה אהבנו" },

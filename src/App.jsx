@@ -16,6 +16,7 @@ const Vouchers = lazy(() => import("./pages/Vouchers"));
 const Gifts = lazy(() => import("./pages/Gifts"));
 const Recipes = lazy(() => import("./pages/Recipes"));
 const More = lazy(() => import("./pages/More"));
+const Nutrition = lazy(() => import("./pages/Nutrition"));
 
 function ScrollTop() {
   const { pathname } = useLocation();
@@ -54,7 +55,7 @@ export default function App() {
       <ScrollTop />
       <Suspense fallback={<div className="min-h-[100dvh]" />}>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Home user={session.user} />} />
           <Route path="/shopping" element={<Shopping />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/money" element={<Money />} />
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="/vouchers" element={<Vouchers />} />
           <Route path="/gifts" element={<Gifts />} />
           <Route path="/recipes" element={<Recipes />} />
+          <Route path="/nutrition" element={<Nutrition user={session.user} />} />
           <Route path="/more" element={<More user={session.user} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

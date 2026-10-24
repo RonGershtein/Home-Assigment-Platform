@@ -9,7 +9,10 @@ const KINDS = [
   { key: "vouchers", label: "שוברים שפגים", hint: "שבוע לפני, יום לפני וביום עצמו" },
   { key: "tasks", label: "מטלות", hint: "ביום היעד וביום שלפניו, ב-9 בבוקר" },
   { key: "shopping", label: "קניות", hint: "כשמישהו אחר מוסיף פריטים לרשימה" },
+  { key: "weight", label: "שקילה יומית", hint: "כל בוקר, אם עוד לא נרשם משקל להיום" },
+  { key: "food", label: "יומן אוכל", hint: "בערב: כמה נשאר להיום, או תזכורת אם לא נרשם כלום" },
 ];
+const DEFAULT_PREFS = { vouchers: true, tasks: true, shopping: true, weight: true, food: true };
 
 export function NotificationSettings() {
   const [state, setState] = useState("loading"); // loading | install | unsupported | off | on | denied
@@ -23,7 +26,7 @@ export function NotificationSettings() {
       if (Notification.permission === "denied") return setState("denied");
       const sub = await currentSubscription();
       if (!sub) return setState("off");
-      setPrefs((await loadPrefs()) ?? { vouchers: true, tasks: true, shopping: true });
+      setPrefs((await loadPrefs()) ?? DEFAULT_PREFS);
       setState("on");
     })().catch(() => setState("off"));
   }, []);
@@ -72,7 +75,7 @@ export function NotificationSettings() {
             </span>
             <p className="flex-1 text-[15px]">
               <span className="block font-medium">ההתראות כבויות</span>
-              <span className="block text-[13px] text-muted">שוברים שפגים, מטלות, ופריטים חדשים בקניות</span>
+              <span className="block text-[13px] text-muted">שוברים שפגים, מטלות, קניות, שקילה ויומן אוכל</span>
             </p>
             <button
               type="button"
@@ -81,7 +84,7 @@ export function NotificationSettings() {
               onClick={() =>
                 run(async () => {
                   const p = await enablePush();
-                  setPrefs(p ?? { vouchers: true, tasks: true, shopping: true });
+                  setPrefs(p ?? DEFAULT_PREFS);
                   setState("on");
                   toast.success("ההתראות הופעלו");
                 })

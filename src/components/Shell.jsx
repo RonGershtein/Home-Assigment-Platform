@@ -7,7 +7,7 @@ const TABS = [
   { to: "/shopping", label: "קניות", icon: ShoppingCart },
   { to: "/tasks", label: "מטלות", icon: ListChecks },
   { to: "/money", label: "כסף", icon: Wallet, match: ["/money", "/budget"] },
-  { to: "/more", label: "עוד", icon: LayoutGrid, match: ["/more", "/vouchers", "/gifts", "/recipes"] },
+  { to: "/more", label: "עוד", icon: LayoutGrid, match: ["/more", "/vouchers", "/gifts", "/recipes", "/nutrition"] },
 ];
 
 export function TabBar() {

@@ -1,5 +1,6 @@
 // שליחת התראות push לאייפון (Web Push).
-// daily    - כל בוקר: שוברים שפגים (7 ימים / מחר / היום) ומטלות להיום ולמחר
+// daily    - כל בוקר: שוברים שפגים (7 ימים / מחר / היום), מטלות להיום ולמחר, ותזכורת שקילה למי שעוד לא נשקל
+// evening  - כל ערב: יומן אוכל - כמה נשאר להיום, או תזכורת אם לא נרשם כלום
 // shopping - כל כמה דקות: פריטים שנוספו לרשימה, רק לבן/בת הזוג השני/ה
 // test     - מהאפליקציה: התראת בדיקה למכשירים של מי שלחץ
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -89,6 +90,80 @@ async function daily(subs: Sub[]) {
   return total;
 }
 
+// לכל משתמש עם מנוי: תזכורת שקילה אם אין רשומה להיום (העדפה "weight")
+async function weight(subs: Sub[]) {
+  const today = israelDay(0);
+  const users = [...new Set(subs.filter((s) => s.prefs?.weight !== false).map((s) => s.user_id))];
+  if (!users.length) return 0;
+  const { data: todays } = await db.from("weight_entries").select("user_id").eq("day", today).in("user_id", users);
+  const done = new Set((todays ?? []).map((r) => r.user_id));
+  const { data: profiles } = await db.from("nutrition_profiles").select("user_id,daily_prompt").in("user_id", users);
+  const off = new Set((profiles ?? []).filter((p) => p.daily_prompt === false).map((p) => p.user_id));
+  const pending = users.filter((u) => !done.has(u) && !off.has(u));
+  const keys = await fresh(pending.map((u) => `weight:${u}:${today}`));
+  let total = 0;
+  for (const u of pending) {
+    if (!keys.includes(`weight:${u}:${today}`)) continue;
+    const { data: last } = await db.from("weight_entries").select("weight_kg,day").eq("user_id", u).order("day", { ascending: false }).limit(1).maybeSingle();
+    const body = last ? `בשקילה הקודמת: ${Number(last.weight_kg).toLocaleString("he-IL", { maximumFractionDigits: 1 })} ק״ג. נגיעה לרישום מהיר.` : "נגיעה לרישום מהיר. הכי מדויק בבוקר, לפני האוכל.";
+    total += await send(subs.filter((s) => s.user_id === u && s.prefs?.weight !== false), { title: "כמה את/ה שוקל/ת היום? ⚖️", body, url: "/", tag: "weight" });
+  }
+  await mark(pending.map((u) => `weight:${u}:${today}`));
+  return total;
+}
+
+// Mifflin-St Jeor + פעילות + גירעון, כמו ב-src/lib/nutrition.js
+const FACTOR: Record<string, number> = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 };
+function targetFor(p: Record<string, unknown> | null, weight: number | null): number | null {
+  if (!p) return null;
+  if (p.calorie_target) return Number(p.calorie_target);
+  const h = Number(p.height_cm);
+  const birth = p.birth_date ? new Date(String(p.birth_date)) : null;
+  const age = birth ? Math.floor((Date.now() - birth.getTime()) / (365.25 * 86_400_000)) : null;
+  if (!weight || !h || !age || !p.sex) return null;
+  const bmr = 10 * weight + 6.25 * h - 5 * age + (p.sex === "male" ? 5 : -161);
+  const tdee = bmr * (FACTOR[String(p.activity)] ?? 1.375);
+  let rate = Number(p.weekly_rate_kg ?? 0.5);
+  if (p.goal === "lose") rate = Math.min(rate, weight * 0.01);
+  if (p.goal === "gain") rate = Math.min(rate, 0.5);
+  const delta = (rate * 7700) / 7;
+  let t = p.goal === "lose" ? tdee - delta : p.goal === "gain" ? tdee + delta : tdee;
+  const floor = p.sex === "female" ? 1200 : 1500;
+  if (t < floor) t = floor;
+  return Math.round(t);
+}
+
+// סיכום ערב ליומן האוכל (העדפה "food")
+async function evening(subs: Sub[]) {
+  const today = israelDay(0);
+  const users = [...new Set(subs.filter((s) => s.prefs?.food !== false).map((s) => s.user_id))];
+  if (!users.length) return 0;
+  const keys = new Set(await fresh(users.map((u) => `food:${u}:${today}`)));
+  const { data: entries } = await db.from("food_entries").select("user_id,kcal").eq("day", today).in("user_id", users);
+  const { data: profiles } = await db.from("nutrition_profiles").select("*").in("user_id", users);
+  let total = 0;
+  for (const u of users) {
+    if (!keys.has(`food:${u}:${today}`)) continue;
+    const mine = (entries ?? []).filter((e) => e.user_id === u);
+    const profile = (profiles ?? []).find((p) => p.user_id === u) ?? null;
+    // בלי פרופיל ובלי רשומות - כנראה לא משתמשים ביומן; לא מציקים
+    if (!mine.length && !profile) continue;
+    const eaten = mine.reduce((s, e) => s + Number(e.kcal || 0), 0);
+    const { data: w } = await db.from("weight_entries").select("weight_kg").eq("user_id", u).order("day", { ascending: false }).limit(1).maybeSingle();
+    const target = targetFor(profile, w ? Number(w.weight_kg) : null);
+    const n = (x: number) => Math.round(x).toLocaleString("he-IL");
+    let msg: Msg;
+    if (!mine.length) msg = { title: "מה אכלת היום? 🍽️", body: "עוד לא נרשם כלום ביומן. 20 שניות וזה בפנים.", url: "/nutrition?tab=food", tag: "food" };
+    else if (target == null) msg = { title: `עד עכשיו: ${n(eaten)} קק״ל`, body: "נותר לרשום את ארוחת הערב? נגיעה ליומן.", url: "/nutrition?tab=food", tag: "food" };
+    else if (eaten <= target) msg = { title: `נותרו ${n(target - eaten)} קק״ל להיום`, body: `נאכלו ${n(eaten)} מתוך ${n(target)}. ארוחת ערב קלה ואתם ביעד 💪`, url: "/nutrition?tab=food", tag: "food" };
+    else msg = { title: `${n(eaten - target)} קק״ל מעל היעד היום`, body: "קורה. מה שקובע זה הממוצע השבועי - מחר יום חדש.", url: "/nutrition?tab=food", tag: "food" };
+    total += await send(subs.filter((s) => s.user_id === u && s.prefs?.food !== false), msg);
+  }
+  await mark([...keys]);
+  total += await weight(subs);
+  return total;
+}
+
 async function shopping(subs: Sub[]) {
   // מחכים 2 דקות אחרי ההוספה כדי לאגד כמה פריטים להתראה אחת
   const { data: items } = await db
@@ -137,14 +212,14 @@ Deno.serve(async (req) => {
       const { data: who } = await db.auth.getUser(token);
       if (!who?.user) return json({ error: "unauthorized" }, 401);
       const { data: subs } = await db.from("push_subscriptions").select("*").eq("user_id", who.user.id);
-      const sent = await send((subs ?? []) as Sub[], { title: "ההתראות עובדות", body: "כאן יופיעו שוברים שפגים, מטלות ופריטים חדשים בקניות.", url: "/more", tag: "test" });
+      const sent = await send((subs ?? []) as Sub[], { title: "ההתראות עובדות", body: "כאן יופיעו שוברים שפגים, מטלות, פריטים חדשים בקניות, תזכורת שקילה וסיכום יומן האוכל.", url: "/more", tag: "test" });
       return json({ sent });
     }
 
     if (!fromCron) return json({ error: "forbidden" }, 403);
     const { data: subs } = await db.from("push_subscriptions").select("*");
     if (!subs?.length) return json({ sent: 0, reason: "no subscriptions" });
-    const sent = body.kind === "shopping" ? await shopping(subs as Sub[]) : await daily(subs as Sub[]);
+    const sent = body.kind === "shopping" ? await shopping(subs as Sub[]) : body.kind === "evening" ? await evening(subs as Sub[]) : await daily(subs as Sub[]);
     return json({ kind: body.kind ?? "daily", sent });
   } catch (e) {
     console.error(e);
