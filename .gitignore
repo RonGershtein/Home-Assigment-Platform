@@ -5,3 +5,4 @@ dist
 .vercel
 # הנתונים האמיתיים מ-Base44 - לא נכנסים ל-git
 data/
+.env*
