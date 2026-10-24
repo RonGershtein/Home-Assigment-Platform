@@ -1,27 +1,25 @@
 import { Link } from "react-router-dom";
-import { ChefHat, ChevronLeft, Gift, Landmark, LogOut, Receipt, RotateCcw, Scale, Ticket } from "lucide-react";
+import { ChevronLeft, LogOut, RotateCcw } from "lucide-react";
 import { Page } from "../components/Shell";
 import ThemeToggle from "../components/ThemeToggle";
-import { NotificationSettings, ProfileName } from "../components/Settings";
+import { NotificationSettings, NutritionVisibility, ProfileName, TabBarSettings } from "../components/Settings";
 import { SectionTitle } from "../components/ui";
 import { signOut } from "../lib/auth";
 import { resetDemo } from "../lib/localBackend";
+import { useNutritionHidden } from "../lib/nutritionVisibility";
+import { SECTIONS, SECTION_ORDER, effectiveTabs, useTabs } from "../lib/sections";
 import { isDemoMode } from "../lib/supabase";
 
-const LINKS = [
-  { to: "/nutrition", icon: Scale, label: "תזונה", hint: "משקל של שנינו, יומן אוכל, BMI ויעד קלוריות" },
-  { to: "/vouchers", icon: Ticket, label: "שוברים", hint: "לפי תוקף, קודים ואתרים" },
-  { to: "/gifts", icon: Gift, label: "מתנות ואירועים", hint: "מה קיבלנו בחתונה ומה נתנו באירועים" },
-  { to: "/recipes", icon: ChefHat, label: "מתכונים", hint: "לינקים ומה אהבנו" },
-  { to: "/money", icon: Landmark, label: "חסכונות וחשבונות", hint: 'עו"ש, קופות, פיקדונות' },
-  { to: "/budget", icon: Receipt, label: "הכנסות והוצאות", hint: "תקציב חודשי לפי קטגוריות" },
-];
-
 export default function More({ user }) {
+  const [tabs] = useTabs();
+  const [hidden] = useNutritionHidden();
+  const inBar = new Set(effectiveTabs(tabs, hidden));
+  // כאן מופיע כל מה שלא בסרגל התחתון (ותזונה רק אם לא הוסתרה)
+  const links = SECTION_ORDER.filter((k) => !inBar.has(k) && !(k === "nutrition" && hidden)).map((k) => ({ key: k, ...SECTIONS[k] }));
   return (
     <Page title="עוד" action={<ThemeToggle />}>
       <ul className="card divide-y overflow-hidden">
-        {LINKS.map((l) => (
+        {links.map((l) => (
           <li key={l.to}>
             <Link to={l.to} state={{ back: "עוד" }} className="press flex items-center gap-3 px-4 min-h-[64px]">
               <span className="grid place-items-center w-10 h-10 rounded-full bg-raised text-fg">
@@ -36,6 +34,12 @@ export default function More({ user }) {
           </li>
         ))}
       </ul>
+
+      <SectionTitle>התאמה אישית</SectionTitle>
+      <div className="card divide-y overflow-hidden">
+        <TabBarSettings />
+        <NutritionVisibility user={user} />
+      </div>
 
       {!isDemoMode && <NotificationSettings />}
 

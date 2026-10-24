@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Scale, Flame, Target, Users, Eye, HousePlus, Pencil, Flag, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -6,7 +6,7 @@ import Sheet from "../../components/Sheet";
 import WeightInput from "../../components/WeightInput";
 import ReminderToggle from "../../components/ReminderToggle";
 import { DeleteButton, Empty, Field, SectionTitle, Segmented, Skeletons, Switch } from "../../components/ui";
-import { fmtDate, todayStr } from "../../lib/format";
+import { fmtDate, parseDay, toDayStr, todayStr } from "../../lib/format";
 import { bmi, bmiBand, etaToGoal, fmt1, fmtKg, relDayLabel, shortDay, streak, weeklyTrend, withAverage, dayNum } from "../../lib/nutrition";
 import { isDemoMode } from "../../lib/supabase";
 
@@ -19,7 +19,7 @@ const RANGES = [
 ];
 const PARTNER_COLOR = "hsl(205 85% 62%)";
 
-export default function WeightTab({ me, myName, nameOf, weights, myProfile, saveProfile }) {
+export default function WeightTab({ me, myName, nameOf, weights, myProfile, profiles, saveProfile }) {
   const [range, setRange] = useState(30);
   const [who, setWho] = useState("me");
   const [editing, setEditing] = useState(null);
@@ -38,12 +38,36 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
   const trend = weeklyTrend(mine);
   const goal = myProfile?.goal_weight_kg != null ? Number(myProfile.goal_weight_kg) : null;
   const eta = etaToGoal(current, goal, trend);
+  const goalDate = myProfile?.goal_date || null;
   const start = mine[0] ? Number(mine[0].weight_kg) : null;
   // התקדמות ליעד: מהשקילה הראשונה ועד היעד (0..1), null כשאין ממה לחשב
   const progress = goal != null && current != null && start != null && Math.abs(start - goal) >= 0.1 ? Math.min(1, Math.max(0, (start - current) / (start - goal))) : null;
   const b = bmi(current, Number(myProfile?.height_cm));
   const band = bmiBand(b);
   const days = streak(mine, today);
+  // יעד של כל אחד (לתצוגת "שנינו")
+  const goalOf = (u) => {
+    const g = profiles?.rows?.find((p) => p.user_id === u)?.goal_weight_kg;
+    return g != null ? Number(g) : null;
+  };
+
+  // אבני דרך: 25/50/75/100% מהדרך ליעד. חוגגים פעם אחת לכל אבן דרך (נזכר במכשיר)
+  useEffect(() => {
+    if (goal == null || progress == null) return;
+    const key = `goal-milestone:${goal}`;
+    const m = progress >= 1 ? 100 : progress >= 0.75 ? 75 : progress >= 0.5 ? 50 : progress >= 0.25 ? 25 : 0;
+    let seen = null;
+    try {
+      seen = localStorage.getItem(key);
+    } catch {}
+    if (seen != null && m <= Number(seen)) return;
+    try {
+      localStorage.setItem(key, String(m));
+    } catch {}
+    if (seen == null && m < 100) return; // יעד חדש: רק זוכרים איפה התחלנו
+    if (m === 100) toast.success("הגעת ליעד! 🎉", { duration: 5000 });
+    else if (m > 0) toast.success(`עברת ${m}% מהדרך ליעד 💪`);
+  }, [goal, progress]);
 
   // נתוני הגרף: שלי (עם ממוצע נע) או של כולם (שורה לכל אדם)
   const chart = useMemo(() => {
@@ -63,10 +87,34 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
     return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
   }, [mine, weights.rows, range, who, today]);
 
+  // תחזית: ממשיכים את קו הממוצע בקצב המגמה עד שפוגשים את היעד (או עד מחצית התקופה המוצגת)
+  const projection = useMemo(() => {
+    if (who !== "me" || goal == null || trend == null || chart.length < 2) return [];
+    const last = chart[chart.length - 1];
+    const from = last.avg ?? last.w;
+    const perDay = trend / 7;
+    const gap = goal - from;
+    if (Math.abs(gap) < 0.1 || Math.sign(gap) !== Math.sign(perDay)) return [];
+    const need = Math.ceil(gap / perDay);
+    const cap = range ? Math.max(7, Math.ceil(range / 2)) : 90;
+    const n = Math.min(need, cap);
+    const pts = [{ ...last, proj: from }];
+    for (let i = 1; i <= n; i++) {
+      const d = parseDay(last.day);
+      d.setDate(d.getDate() + i);
+      const day = toDayStr(d);
+      const v = i === need ? goal : from + perDay * i;
+      pts.push({ day, label: shortDay(day), proj: Math.round(v * 100) / 100, future: true });
+    }
+    return pts;
+  }, [chart, who, goal, trend, range]);
+  const data = projection.length ? [...chart.slice(0, -1), ...projection] : chart;
+
   const inRange = chart.map((r) => (who === "me" ? r.w : Math.max(...[me, ...partners].map((u) => r[u] ?? -Infinity)))).filter((v) => isFinite(v));
-  const allVals = chart.flatMap((r) => (who === "me" ? [r.w, r.avg] : [me, ...partners].map((u) => r[u]))).filter((v) => v != null && isFinite(v));
-  const yMin = allVals.length ? Math.floor(Math.min(...allVals, goal ?? Infinity) - 1) : 0;
-  const yMax = allVals.length ? Math.ceil(Math.max(...allVals, goal ?? -Infinity) + 1) : 100;
+  const allVals = data.flatMap((r) => (who === "me" ? [r.w, r.avg, r.proj] : [me, ...partners].map((u) => r[u]))).filter((v) => v != null && isFinite(v));
+  const goalVals = who === "me" ? [goal] : [me, ...partners].map(goalOf);
+  const yMin = allVals.length ? Math.floor(Math.min(...allVals, ...goalVals.filter((g) => g != null)) - 1) : 0;
+  const yMax = allVals.length ? Math.ceil(Math.max(...allVals, ...goalVals.filter((g) => g != null)) + 1) : 100;
   const first = who === "me" && chart.length ? chart[0].w : null;
   const sinceStart = first != null && current != null ? current - first : null;
 
@@ -83,13 +131,24 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
   };
 
   // יעד משקל: נשמר בפרופיל, וכיוון המטרה (לרדת/לעלות) נגזר מהמשקל הנוכחי
-  const saveGoal = async (value) => {
-    const w = Math.round(Number(value) * 10) / 10;
-    if (!(w > 20 && w < 400)) return toast.error("משקל יעד לא תקין");
-    const patch = { goal_weight_kg: w };
-    if (current != null && Math.abs(w - current) >= 0.5) patch.goal = w < current ? "lose" : "gain";
+  // עמודת goal_date נוספה בשלב 4 (supabase/schema-4-goal-date.sql). אם עוד לא קיימת - שומרים בלעדיה
+  const saveWithDate = async (patch) => {
     try {
       await saveProfile(patch);
+    } catch (e) {
+      if (!("goal_date" in patch) || !/goal_date/.test(e?.message || "")) throw e;
+      const { goal_date, ...rest } = patch;
+      await saveProfile(rest);
+      if (goal_date) toast.error("תאריך היעד לא נשמר: צריך להריץ את supabase/schema-4-goal-date.sql", { duration: 6000 });
+    }
+  };
+  const saveGoal = async (value, date) => {
+    const w = Math.round(Number(value) * 10) / 10;
+    if (!(w > 20 && w < 400)) return toast.error("משקל יעד לא תקין");
+    const patch = { goal_weight_kg: w, goal_date: date || null };
+    if (current != null && Math.abs(w - current) >= 0.5) patch.goal = w < current ? "lose" : "gain";
+    try {
+      await saveWithDate(patch);
       toast.success(goal == null ? "היעד נקבע 🎯" : "היעד עודכן");
       setGoalOpen(false);
     } catch (e) {
@@ -98,7 +157,7 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
   };
   const removeGoal = async () => {
     try {
-      await saveProfile({ goal_weight_kg: null });
+      await saveWithDate({ goal_weight_kg: null, goal_date: null });
       toast.success("היעד הוסר");
       setGoalOpen(false);
     } catch (e) {
@@ -159,7 +218,7 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
         {chart.length >= 2 ? (
           <div className="h-[170px] -mx-2 mt-4" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chart} margin={{ top: 8, right: 10, left: 10, bottom: 0 }}>
+              <ComposedChart data={data} margin={{ top: 8, right: 10, left: 10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="wfill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity={0.35} />
@@ -175,15 +234,22 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
                   labelStyle={{ color: "hsl(var(--muted))" }}
                   itemStyle={{ color: "hsl(var(--fg))" }}
                   labelFormatter={(_, p) => (p?.[0]?.payload?.day ? fmtDate(p[0].payload.day) : "")}
-                  formatter={(v, name) => [fmtKg(v), name === "w" ? "משקל" : name === "avg" ? "ממוצע 7 ימים" : nameOf(name)]}
+                  formatter={(v, name) => [fmtKg(v), name === "w" ? "משקל" : name === "avg" ? "ממוצע 7 ימים" : name === "proj" ? "תחזית" : nameOf(name)]}
                 />
-                {goal != null && (
-                  <ReferenceLine y={goal} stroke="hsl(var(--good))" strokeWidth={1.5} strokeDasharray="5 4" ifOverflow="extendDomain" label={{ value: `יעד ${fmt1(goal)}`, position: "insideTopRight", fill: "hsl(var(--good))", fontSize: 11, fontWeight: 600 }} />
-                )}
+                {who === "me"
+                  ? goal != null && (
+                      <ReferenceLine y={goal} stroke="hsl(var(--good))" strokeWidth={1.5} strokeDasharray="5 4" ifOverflow="extendDomain" label={{ value: `יעד ${fmt1(goal)}`, position: "insideTopRight", fill: "hsl(var(--good))", fontSize: 11, fontWeight: 600 }} />
+                    )
+                  : [me, ...partners].map((u, i) => {
+                      const g = goalOf(u);
+                      const color = i === 0 ? "hsl(var(--accent))" : PARTNER_COLOR;
+                      return g != null && <ReferenceLine key={`goal-${u}`} y={g} stroke={color} strokeOpacity={0.8} strokeDasharray="5 4" ifOverflow="extendDomain" label={{ value: `יעד ${nameOf(u)} ${fmt1(g)}`, position: i === 0 ? "insideTopRight" : "insideTopLeft", fill: color, fontSize: 11, fontWeight: 600 }} />;
+                    })}
                 {who === "me" ? (
                   <>
                     <Area type="monotone" dataKey="w" stroke="hsl(var(--accent))" strokeWidth={1.5} strokeOpacity={0.55} fill="url(#wfill)" dot={{ r: 2.5, fill: "hsl(var(--accent))", strokeWidth: 0 }} activeDot={{ r: 5 }} isAnimationActive={false} />
                     <Line type="monotone" dataKey="avg" stroke="hsl(var(--fg))" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                    {projection.length > 0 && <Line type="monotone" dataKey="proj" stroke="hsl(var(--fg))" strokeOpacity={0.45} strokeWidth={2} strokeDasharray="3 5" dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />}
                   </>
                 ) : (
                   [me, ...partners].map((u, i) => (
@@ -218,7 +284,7 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
         {who === "me" && current != null && (
           <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t">
             <Stat label="ממוצע 7 ימים" value={fmt1(withAverage(mine).at(-1)?.avg)} unit="ק״ג" />
-            {goal != null ? <Stat label="עד היעד" value={fmt1(Math.abs(goal - current))} unit="ק״ג" sub={eta == null ? (Math.abs(goal - current) < 0.1 ? "הגעת! 🎉" : null) : eta === 0 ? "הגעת! 🎉" : `בקצב הזה: ${etaLabel(eta)}`} /> : <Stat label="מאז ההתחלה" value={fmtKg(sinceStart, true)} />}
+            <Stat label="מאז ההתחלה" value={fmtKg(sinceStart, true)} sub={projection.length ? "הקו המקווקו: תחזית" : null} />
             {b != null ? <Stat label="BMI" value={fmt1(b)} sub={band?.label} tone={band?.tone} /> : <Stat label="רצף" value={days} unit={days === 1 ? "יום" : "ימים"} />}
           </div>
         )}
@@ -226,7 +292,7 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
 
       {/* יעד אישי: קביעה, עריכה והסרה */}
       {who === "me" && (
-        <GoalCard goal={goal} current={current} progress={progress} eta={eta} onOpen={() => setGoalOpen(true)} />
+        <GoalCard goal={goal} goalDate={goalDate} current={current} progress={progress} eta={eta} trend={trend} today={today} onOpen={() => setGoalOpen(true)} />
       )}
 
       {/* רישום מהיר של היום */}
@@ -282,7 +348,7 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
       )}
 
       <Sheet open={goalOpen} onClose={() => setGoalOpen(false)} title={goal == null ? "יעד משקל" : "עריכת היעד"}>
-        {goalOpen && <GoalForm key={goal ?? "new"} goal={goal} current={current} onSave={saveGoal} onRemove={removeGoal} />}
+        {goalOpen && <GoalForm key={goal ?? "new"} goal={goal} goalDate={goalDate} current={current} today={today} onSave={saveGoal} onRemove={removeGoal} />}
       </Sheet>
 
       <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? "עריכת שקילה" : "שקילה"}>
@@ -303,7 +369,7 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, save
 }
 
 // כרטיס היעד: בלי יעד - כפתור להגדרה; עם יעד - כמה נשאר, התקדמות ותחזית. נגיעה פותחת עריכה
-function GoalCard({ goal, current, progress, eta, onOpen }) {
+function GoalCard({ goal, goalDate, current, progress, eta, trend, today, onOpen }) {
   if (goal == null)
     return (
       <button type="button" onClick={onOpen} className="press card mt-3 w-full flex items-center gap-3 p-4 text-start border-2 border-dashed border-line bg-transparent">
@@ -319,6 +385,19 @@ function GoalCard({ goal, current, progress, eta, onOpen }) {
     );
   const left = current != null ? goal - current : null;
   const reached = left != null && Math.abs(left) < 0.1;
+  // תאריך יעד: הקצב הנדרש מול הקצב בפועל
+  const pace = (() => {
+    if (!goalDate || reached || left == null) return null;
+    const daysLeft = dayNum(goalDate) - dayNum(today);
+    if (daysLeft <= 0) return { text: `התאריך (${fmtDate(goalDate)}) עבר. אפשר לבחור חדש`, tone: "text-warn" };
+    const need = Math.abs(left) / (daysLeft / 7);
+    const actual = trend != null && Math.sign(trend) === Math.sign(left) ? Math.abs(trend) : 0;
+    const behind = trend != null && actual < need * 0.85;
+    return {
+      text: `עד ${fmtDate(goalDate)}: צריך ${fmt1(need)} ק״ג בשבוע${trend != null ? ` · עכשיו ${fmt1(actual)}` : ""}`,
+      tone: behind ? "text-warn" : trend != null ? "text-good" : "text-muted",
+    };
+  })();
   return (
     <button type="button" onClick={onOpen} className="press card mt-3 w-full p-4 text-start rise">
       <span className="flex items-center gap-3">
@@ -335,17 +414,22 @@ function GoalCard({ goal, current, progress, eta, onOpen }) {
         </span>
         <Pencil size={16} className="text-muted shrink-0" />
       </span>
+      {pace && <span className={`block text-[12px] mt-1.5 ps-[52px] ${pace.tone}`}>{pace.text}</span>}
       {progress != null && (
-        <span className="block mt-3 h-2 rounded-full bg-raised overflow-hidden" dir="ltr" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+        <span className="relative block mt-3 h-2 rounded-full bg-raised overflow-hidden" dir="ltr" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}>
           <span className={`block h-full rounded-full ${reached ? "bg-good" : "bg-accent"}`} style={{ width: `${Math.max(4, progress * 100)}%`, transition: "width 500ms var(--ease-out)" }} />
+          {[25, 50, 75].map((m) => (
+            <span key={m} className="absolute top-0 bottom-0 w-px bg-card/80" style={{ left: `${m}%` }} aria-hidden="true" />
+          ))}
         </span>
       )}
     </button>
   );
 }
 
-function GoalForm({ goal, current, onSave, onRemove }) {
+function GoalForm({ goal, goalDate, current, today, onSave, onRemove }) {
   const [w, setW] = useState(() => (goal ?? (current != null ? Math.round(current - 5) : 70)).toFixed(1));
+  const [date, setDate] = useState(goalDate || "");
   const [saving, setSaving] = useState(false);
   const diff = current != null && Number(w) > 20 ? Number(w) - current : null;
   return (
@@ -355,7 +439,7 @@ function GoalForm({ goal, current, onSave, onRemove }) {
         e.preventDefault();
         setSaving(true);
         try {
-          await onSave(w);
+          await onSave(w, date);
         } finally {
           setSaving(false);
         }
@@ -371,6 +455,9 @@ function GoalForm({ goal, current, onSave, onRemove }) {
         )}
       </p>
       <WeightInput value={w} onChange={setW} autoFocus={goal == null} />
+      <Field label="עד מתי? (לא חובה)">
+        <input type="date" className="field" value={date} min={today} onChange={(e) => setDate(e.target.value)} />
+      </Field>
       <p className="text-[12px] text-muted text-center">אפשר לשנות או להסיר את היעד בכל שלב</p>
       <div className="flex gap-2 pt-2">
         <button type="submit" className="btn btn-primary flex-1" disabled={saving || !(Number(w) > 20)}>

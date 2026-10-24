@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { Bell, BellOff, Loader2, Send, Share, SquarePlus } from "lucide-react";
+import { Bell, BellOff, Loader2, RotateCcw, Scale, Send, Share, SquarePlus } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "../lib/supabase";
+import { isDemoMode, supabase } from "../lib/supabase";
+import { table } from "../lib/db";
 import { currentSubscription, disablePush, enablePush, isIOS, isStandalone, loadPrefs, pushSupported, savePrefs, sendTest } from "../lib/push";
+import { useNutritionHidden } from "../lib/nutritionVisibility";
+import { DEFAULT_TABS, SECTIONS, SECTION_ORDER, useTabs } from "../lib/sections";
 import { SectionTitle, Switch } from "./ui";
 
 const KINDS = [
@@ -18,6 +21,8 @@ export function NotificationSettings() {
   const [state, setState] = useState("loading"); // loading | install | unsupported | off | on | denied
   const [prefs, setPrefs] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [nutritionHidden] = useNutritionHidden();
+  const kinds = nutritionHidden ? KINDS.filter((k) => k.key !== "weight" && k.key !== "food") : KINDS;
 
   useEffect(() => {
     (async () => {
@@ -75,7 +80,7 @@ export function NotificationSettings() {
             </span>
             <p className="flex-1 text-[15px]">
               <span className="block font-medium">ההתראות כבויות</span>
-              <span className="block text-[13px] text-muted">שוברים שפגים, מטלות, קניות, שקילה ויומן אוכל</span>
+              <span className="block text-[13px] text-muted">{nutritionHidden ? "שוברים שפגים, מטלות וקניות" : "שוברים שפגים, מטלות, קניות, שקילה ויומן אוכל"}</span>
             </p>
             <button
               type="button"
@@ -97,7 +102,7 @@ export function NotificationSettings() {
 
         {state === "on" && prefs && (
           <div className="divide-y">
-            {KINDS.map((k) => (
+            {kinds.map((k) => (
               <div key={k.key} className="flex items-center gap-3 px-4 min-h-[64px]">
                 <p className="flex-1 text-[15px]">
                   <span className="block font-medium">{k.label}</span>
@@ -182,5 +187,89 @@ export function ProfileName({ user }) {
         placeholder="איך יופיע ליד פריטים שהוספת"
       />
     </label>
+  );
+}
+
+// הסרגל התחתון: בוחרים אילו שלושה מדורים יושבים בין "בית" ל"עוד"
+export function TabBarSettings() {
+  const [tabs, setTabs] = useTabs();
+  const [nutritionHidden] = useNutritionHidden();
+  const options = SECTION_ORDER.filter((k) => !(k === "nutrition" && nutritionHidden));
+  const pick = (slot, key) => {
+    const next = [...tabs];
+    const dup = next.indexOf(key);
+    if (dup >= 0 && dup !== slot) next[dup] = next[slot]; // כבר במקום אחר: מחליפים ביניהם
+    next[slot] = key;
+    setTabs(next);
+  };
+  const isDefault = tabs.join() === DEFAULT_TABS.join();
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[15px]">
+          <span className="block font-medium">הסרגל התחתון</span>
+          <span className="block text-[13px] text-muted">בית ו״עוד״ קבועים. את שלושת האמצעיים בוחרים כאן</span>
+        </p>
+        {!isDefault && (
+          <button type="button" className="press flex items-center gap-1 text-[13px] text-accent-text font-medium h-8 shrink-0" onClick={() => setTabs(DEFAULT_TABS)}>
+            <RotateCcw size={14} /> ברירת מחדל
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-2 mt-3">
+        {tabs.map((key, slot) => {
+          const Icon = SECTIONS[key].icon;
+          return (
+            <label key={slot} className="relative">
+              <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-[12px] font-medium">
+                <Icon size={18} />
+                {SECTIONS[key].label}
+              </span>
+              <select className="field h-16 w-full appearance-none text-transparent bg-raised" value={key} onChange={(e) => pick(slot, e.target.value)} aria-label={`מקום ${slot + 1} בסרגל`}>
+                {options.map((k) => (
+                  <option key={k} value={k} className="text-fg">
+                    {SECTIONS[k].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// הצגה/הסתרה של תזונה ומשקל בכל האפליקציה. הסתרה גם מכבה את שאלת המשקל היומית ואת תזכורות השקילה והאוכל
+export function NutritionVisibility({ user }) {
+  const [hidden, setHidden] = useNutritionHidden();
+  const [busy, setBusy] = useState(false);
+  const toggle = async (show) => {
+    setBusy(true);
+    setHidden(!show);
+    try {
+      await table("nutrition_profiles").upsert({ user_id: user?.id ?? "demo", daily_prompt: show }, "user_id");
+      if (!isDemoMode && pushSupported() && (await currentSubscription())) {
+        const p = (await loadPrefs()) ?? {};
+        await savePrefs({ ...p, weight: show, food: show });
+      }
+      toast.success(show ? "תזונה ומשקל חזרו לאפליקציה" : "תזונה ומשקל הוסתרו, בלי שאלת משקל ובלי תזכורות");
+    } catch (e) {
+      toast.error(e.message || "לא נשמר");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex items-center gap-3 px-4 min-h-[64px]">
+      <span className="grid place-items-center w-10 h-10 rounded-full bg-raised shrink-0">
+        <Scale size={19} />
+      </span>
+      <p className="flex-1 text-[15px]">
+        <span className="block font-medium">תזונה ומשקל</span>
+        <span className="block text-[13px] text-muted">{hidden ? "מוסתר: בלי שאלת המשקל בבית ובלי תזכורות. הנתונים נשמרים" : "מוצג באפליקציה, עם שאלת המשקל היומית"}</span>
+      </p>
+      <Switch on={!hidden} onChange={toggle} label="להציג תזונה ומשקל" disabled={busy} />
+    </div>
   );
 }

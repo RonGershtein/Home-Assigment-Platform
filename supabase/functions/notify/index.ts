@@ -146,8 +146,10 @@ async function evening(subs: Sub[]) {
     if (!keys.has(`food:${u}:${today}`)) continue;
     const mine = (entries ?? []).filter((e) => e.user_id === u);
     const profile = (profiles ?? []).find((p) => p.user_id === u) ?? null;
-    // בלי פרופיל ובלי רשומות - כנראה לא משתמשים ביומן; לא מציקים
+    // בלי פרופיל ובלי רשומות - כנראה לא משתמשים ביומן; לא מציקים.
+    // daily_prompt=false = המשתמש הסתיר את התזונה באפליקציה - בלי תזכורות אוכל בכלל
     if (!mine.length && !profile) continue;
+    if (profile?.daily_prompt === false) continue;
     const eaten = mine.reduce((s, e) => s + Number(e.kcal || 0), 0);
     const { data: w } = await db.from("weight_entries").select("weight_kg").eq("user_id", u).order("day", { ascending: false }).limit(1).maybeSingle();
     const target = targetFor(profile, w ? Number(w.weight_kg) : null);

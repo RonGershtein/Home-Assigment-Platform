@@ -1,17 +1,26 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { ChevronRight, House, ShoppingCart, ListChecks, Wallet, LayoutGrid } from "lucide-react";
+import { ChevronRight, House, LayoutGrid } from "lucide-react";
+import { SECTIONS, effectiveTabs, useTabs } from "../lib/sections";
+import { useNutritionHidden } from "../lib/nutritionVisibility";
 
-const TABS = [
-  { to: "/", label: "בית", icon: House, end: true },
-  { to: "/shopping", label: "קניות", icon: ShoppingCart },
-  { to: "/tasks", label: "מטלות", icon: ListChecks },
-  { to: "/money", label: "כסף", icon: Wallet, match: ["/money", "/budget"] },
-  { to: "/more", label: "עוד", icon: LayoutGrid, match: ["/more", "/vouchers", "/gifts", "/recipes", "/nutrition"] },
-];
+const HOME = { to: "/", label: "בית", icon: House, end: true };
+const MORE = { to: "/more", label: "עוד", icon: LayoutGrid };
 
+// הסרגל התחתון: בית ו"עוד" קבועים, שלושת האמצעיים נבחרים ב"עוד ← הסרגל התחתון"
 export function TabBar() {
   const { pathname } = useLocation();
+  const [chosen] = useTabs();
+  const [hidden] = useNutritionHidden();
+  const middle = effectiveTabs(chosen, hidden).map((k) => ({ key: k, ...SECTIONS[k] }));
+  // הטאב הפעיל: ההתאמה הארוכה ביותר; מה שלא שייך לאף טאב - "עוד"
+  const activeTo = (() => {
+    if (pathname === "/") return "/";
+    let best = null;
+    for (const t of middle) for (const m of t.match ?? [t.to]) if (pathname.startsWith(m) && (!best || m.length > best.len)) best = { to: t.to, len: m.length };
+    return best?.to ?? "/more";
+  })();
+  const TABS = [HOME, ...middle, MORE];
   return (
     <nav
       className="fixed bottom-0 inset-x-0 z-40 bg-bg/80 backdrop-blur-xl border-t"
@@ -19,8 +28,8 @@ export function TabBar() {
       aria-label="ניווט ראשי"
     >
       <div className="mx-auto max-w-xl grid grid-cols-5 h-[var(--tabbar-h)]">
-        {TABS.map(({ to, label, icon: Icon, end, match }) => {
-          const active = match ? match.some((m) => pathname.startsWith(m)) : end ? pathname === to : pathname.startsWith(to);
+        {TABS.map(({ to, label, icon: Icon }) => {
+          const active = activeTo === to;
           return (
             <NavLink
               key={to}

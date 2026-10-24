@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { ChefHat, ChevronLeft, Gift, ListChecks, Scale, ShoppingCart, Ticket, X } from "lucide-react";
 import { toast } from "sonner";
 import WeightInput from "../components/WeightInput";
-import { fmtKg } from "../lib/nutrition";
+import { fmt1, fmtKg } from "../lib/nutrition";
+import { useNutritionHidden } from "../lib/nutritionVisibility";
 import { Page } from "../components/Shell";
 import ThemeToggle from "../components/ThemeToggle";
 import { CheckCircle, SectionTitle, useLeaving } from "../components/ui";
@@ -24,6 +25,15 @@ export default function Home({ user }) {
   const weights = useTable("weight_entries");
   const nutrition = useTable("nutrition_profiles");
   const me = user?.id ?? "demo";
+  const [nutritionHidden] = useNutritionHidden();
+  const myNutrition = nutrition.rows.find((p) => p.user_id === me);
+  // כמה נשאר ליעד המשקל, לשורת "תזונה ומשקל" ולשאלת הבוקר
+  const goalLeft = useMemo(() => {
+    const goal = myNutrition?.goal_weight_kg != null ? Number(myNutrition.goal_weight_kg) : null;
+    const last = weights.rows.filter((e) => e.user_id === me).sort((a, b) => b.day.localeCompare(a.day))[0];
+    return goal != null && last ? goal - Number(last.weight_kg) : null;
+  }, [myNutrition, weights.rows, me]);
+  const goalHint = goalLeft == null ? null : Math.abs(goalLeft) < 0.1 ? "הגעת ליעד 🎉" : `עוד ${fmt1(Math.abs(goalLeft))} ק״ג ליעד`;
 
   const [leavingIds, leave] = useLeaving();
   const toBuy = shopping.rows.filter((i) => !i.is_purchased);
@@ -63,7 +73,7 @@ export default function Home({ user }) {
 
   return (
     <Page title={greeting()} subtitle={date} action={<ThemeToggle />}>
-      <WeightPrompt me={me} weights={weights} profile={nutrition.rows.find((p) => p.user_id === me)} loading={weights.loading || nutrition.loading} />
+      {!nutritionHidden && <WeightPrompt me={me} weights={weights} profile={myNutrition} goalHint={goalHint} loading={weights.loading || nutrition.loading} />}
       <Link to="/budget" state={BACK} className="press hero block p-5 rise">
         <div className="flex items-center justify-between text-[13px] text-muted">
           <span>{inc ? "נשאר החודש" : "הוצאות החודש"}</span>
@@ -165,7 +175,7 @@ export default function Home({ user }) {
           ["/vouchers", Ticket, "שוברים", `${vouchers.rows.filter((v) => v.status !== "used" && (daysUntil(v.expiry_date) ?? 0) >= 0).length} בתוקף`],
           ["/gifts", Gift, "מתנות ואירועים", null],
           ["/recipes", ChefHat, "מתכונים", null],
-          ["/nutrition", Scale, "תזונה ומשקל", null],
+          ...(nutritionHidden ? [] : [["/nutrition", Scale, "תזונה ומשקל", goalHint]]),
         ].map(([to, Icon, label, hint]) => (
           <li key={to}>
             <Link to={to} state={BACK} className="press flex items-center gap-3 px-4 min-h-[56px]">
@@ -192,7 +202,7 @@ function SeeAll({ to, label }) {
 
 // שאלת המשקל היומית: מופיעה עד שרושמים (או דוחים להיום). כבויה דרך "תזונה ← שאלת המשקל במסך הבית"
 const DISMISS_KEY = "weight-prompt-dismissed";
-function WeightPrompt({ me, weights, profile, loading }) {
+function WeightPrompt({ me, weights, profile, goalHint, loading }) {
   const today = todayStr();
   const [dismissed, setDismissed] = useState(() => {
     try {
@@ -250,7 +260,10 @@ function WeightPrompt({ me, weights, profile, loading }) {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-[16px] font-semibold">כמה את/ה שוקל/ת היום?</p>
-          <p className="text-[13px] text-muted mt-0.5">{last != null ? `בפעם הקודמת: ${fmtKg(last)}` : "שקילה ראשונה - הכי טוב בבוקר"}</p>
+          <p className="text-[13px] text-muted mt-0.5">
+            {last != null ? `בפעם הקודמת: ${fmtKg(last)}` : "שקילה ראשונה - הכי טוב בבוקר"}
+            {goalHint && ` · ${goalHint}`}
+          </p>
         </div>
         <button type="button" className="icon-btn -me-2 -mt-1" onClick={dismiss} aria-label="לא היום">
           <X size={18} />
