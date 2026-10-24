@@ -225,7 +225,7 @@ export function TabBarSettings() {
                 <Icon size={18} />
                 {SECTIONS[key].label}
               </span>
-              <select className="field h-16 w-full appearance-none text-transparent bg-raised" value={key} onChange={(e) => pick(slot, e.target.value)} aria-label={`מקום ${slot + 1} בסרגל`}>
+              <select className="field h-16 w-full appearance-none bg-raised" style={{ color: "transparent", WebkitTextFillColor: "transparent" }} value={key} onChange={(e) => pick(slot, e.target.value)} aria-label={`מקום ${slot + 1} בסרגל`}>
                 {options.map((k) => (
                   <option key={k} value={k} className="text-fg">
                     {SECTIONS[k].label}
