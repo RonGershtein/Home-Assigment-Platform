@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { Bar, BarChart, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ChevronLeft, ChevronRight, Flame, Pencil, Plus, Sparkles, UtensilsCrossed, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flame, Pencil, Plus, Sparkles, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 import Sheet from "../../components/Sheet";
 import ReminderToggle from "../../components/ReminderToggle";
-import { DeleteButton, Field, SearchField, SectionTitle, Segmented, Skeletons } from "../../components/ui";
+import { DeleteButton, Field, SectionTitle, Segmented, Skeletons } from "../../components/ui";
+import AddFood, { foodIcon } from "./AddFood";
 import { todayStr } from "../../lib/format";
-import { FOODS, FOOD_CATEGORIES, foodByKey, searchFoods } from "../../lib/foods";
+
 import { MEALS, calorieTarget, fmt0, fmtKcal, mealByHour, relDayLabel, shiftDay, shortDay, streak } from "../../lib/nutrition";
 
 export default function FoodTab({ me, myName, nameOf, foods, weights, myProfile, goBody }) {
@@ -147,7 +148,7 @@ export default function FoodTab({ me, myName, nameOf, foods, weights, myProfile,
                   {items.map((e) => (
                     <li key={e.id}>
                       <button type="button" className={`${viewingMe ? "press" : ""} w-full flex items-center gap-3 px-4 min-h-[56px] text-start`} onClick={() => viewingMe && setEditing(e)} disabled={!viewingMe}>
-                        <span className="text-[22px] leading-none w-7 text-center">{foodByKey(e.food_key)?.icon ?? "🍽️"}</span>
+                        <span className="text-[22px] leading-none w-7 text-center">{foodIcon(e.food_key)}</span>
                         <span className="flex-1 min-w-0">
                           <span className="block text-[15px] font-medium truncate">{e.name}</span>
                           <span className="block text-[13px] text-muted truncate">
@@ -264,152 +265,6 @@ function Ring({ share, over, size, children }) {
   );
 }
 
-function AddFood({ meal: initialMeal, recentRows, onAdd }) {
-  const [q, setQ] = useState("");
-  const [cat, setCat] = useState("israeli");
-  const [picked, setPicked] = useState(null); // {food?, name, kcal, protein, unit, key}
-  const [qty, setQty] = useState(1);
-  const [meal, setMeal] = useState(initialMeal);
-  const [custom, setCustom] = useState(false);
-  const [cName, setCName] = useState("");
-  const [cKcal, setCKcal] = useState("");
-  const [cProt, setCProt] = useState("");
-
-  // "אכלת לאחרונה": לפי תדירות ואחרונות, בלי כפילויות
-  const recents = useMemo(() => {
-    const seen = new Map();
-    for (const e of [...recentRows].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))) {
-      const k = e.food_key || e.name;
-      const cur = seen.get(k);
-      if (cur) cur.count++;
-      else seen.set(k, { key: e.food_key, name: e.name, kcal: Number(e.kcal) / (Number(e.qty) || 1), protein: Number(e.protein_g || 0) / (Number(e.qty) || 1), unit: e.unit, count: 1, icon: foodByKey(e.food_key)?.icon ?? "🍽️" });
-    }
-    return [...seen.values()].sort((a, b) => b.count - a.count).slice(0, 10);
-  }, [recentRows]);
-
-  const results = q.trim() ? searchFoods(q) : FOODS.filter((f) => f.category === cat);
-  const pick = (f) => {
-    setPicked({ key: f.key, name: f.name, kcal: f.kcal, protein: f.protein, unit: f.serving ?? f.unit, icon: f.icon });
-    setQty(1);
-  };
-  const submit = () => {
-    if (!picked) return;
-    onAdd({ meal, name: picked.name, kcal: Math.round(picked.kcal * qty), protein_g: picked.protein ? Math.round(picked.protein * qty * 10) / 10 : null, qty, unit: picked.unit || null, food_key: picked.key || null });
-  };
-  const submitCustom = () => {
-    const k = Number(cKcal);
-    if (!cName.trim() || !(k >= 0)) return;
-    onAdd({ meal, name: cName.trim(), kcal: Math.round(k), protein_g: cProt ? Number(cProt) : null, qty: 1, unit: null, food_key: null });
-  };
-
-  return (
-    <div className="space-y-3 -mt-1">
-      <Segmented value={meal} onChange={setMeal} options={MEALS.map((m) => ({ value: m.value, label: m.icon }))} />
-
-      {picked ? (
-        <div className="rounded-2xl bg-raised p-4 enter">
-          <div className="flex items-center gap-3">
-            <span className="text-[28px] leading-none">{picked.icon}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-[16px] font-semibold truncate">{picked.name}</p>
-              <p className="text-[13px] text-muted truncate">{picked.unit || "מנה"}</p>
-            </div>
-            <button type="button" className="icon-btn" onClick={() => setPicked(null)} aria-label="ביטול">
-              <X size={18} />
-            </button>
-          </div>
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex items-center gap-2" dir="ltr">
-              {[0.5, 1, 1.5, 2, 3].map((n) => (
-                <button key={n} type="button" onClick={() => setQty(n)} className={`press num h-9 min-w-[40px] px-2 rounded-full text-[14px] font-medium ${qty === n ? "bg-fg text-bg" : "bg-card"}`}>
-                  ×{n}
-                </button>
-              ))}
-            </div>
-            <p className="num text-[20px] font-bold">
-              {fmt0(picked.kcal * qty)} <span className="text-[12px] text-muted font-normal">קק״ל</span>
-            </p>
-          </div>
-          <button type="button" className="btn btn-primary w-full mt-4 h-11" onClick={submit}>
-            <Plus size={18} /> הוספה ל{MEALS.find((m) => m.value === meal)?.label}
-          </button>
-        </div>
-      ) : custom ? (
-        <div className="rounded-2xl bg-raised p-4 space-y-3 enter">
-          <Field label="שם">
-            <input className="field bg-card" value={cName} onChange={(e) => setCName(e.target.value)} autoFocus placeholder="סלט עוף של אמא" />
-          </Field>
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="קלוריות">
-              <input className="field bg-card num" type="number" inputMode="numeric" value={cKcal} onChange={(e) => setCKcal(e.target.value)} placeholder="350" />
-            </Field>
-            <Field label="חלבון (גר׳)">
-              <input className="field bg-card num" type="number" inputMode="decimal" value={cProt} onChange={(e) => setCProt(e.target.value)} placeholder="20" />
-            </Field>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" className="btn btn-primary flex-1 h-11" disabled={!cName.trim() || cKcal === ""} onClick={submitCustom}>
-              הוספה
-            </button>
-            <button type="button" className="btn btn-soft h-11" onClick={() => setCustom(false)}>
-              ביטול
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
-          <SearchField value={q} onChange={setQ} placeholder="חיפוש: פיתה, קוטג׳, שניצל…" />
-
-          {!q && recents.length > 0 && (
-            <div>
-              <p className="label">אכלת לאחרונה</p>
-              <div className="hscroll -mx-5 px-5">
-                {recents.map((r) => (
-                  <button key={r.key || r.name} type="button" className="chip bg-raised" onClick={() => pick({ key: r.key, name: r.name, kcal: r.kcal, protein: r.protein, serving: r.unit, icon: r.icon })}>
-                    <span className="text-[16px] leading-none">{r.icon}</span> {r.name} <span className="num opacity-60">{fmt0(r.kcal)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {!q && (
-            <div className="hscroll -mx-5 px-5">
-              {FOOD_CATEGORIES.map((c) => (
-                <button key={c.value} type="button" className="chip bg-raised" data-on={cat === c.value} onClick={() => setCat(c.value)}>
-                  {c.icon} {c.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <ul className="divide-y">
-            {results.map((f) => (
-              <li key={f.key}>
-                <button type="button" className="press w-full flex items-center gap-3 min-h-[52px] text-start" onClick={() => pick(f)}>
-                  <span className="text-[22px] leading-none w-7 text-center">{f.icon}</span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-[15px] font-medium truncate">{f.name}</span>
-                    <span className="block text-[12px] text-muted truncate">
-                      {f.serving}
-                      {f.protein ? ` · ${f.protein} גר׳ חלבון` : ""}
-                    </span>
-                  </span>
-                  <span className="num text-[15px] font-semibold text-muted">{f.kcal}</span>
-                </button>
-              </li>
-            ))}
-            {q && results.length === 0 && <li className="py-6 text-center text-[14px] text-muted">לא נמצא במאגר</li>}
-          </ul>
-          <button type="button" className="btn btn-soft w-full h-11" onClick={() => { setCustom(true); setCName(q); }}>
-            <Pencil size={16} /> הוספה ידנית (שם וקלוריות)
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
 function EditFood({ entry, onSave, onDelete }) {
   const perUnit = Number(entry.kcal) / (Number(entry.qty) || 1);
   const protUnit = Number(entry.protein_g || 0) / (Number(entry.qty) || 1);
@@ -426,7 +281,7 @@ function EditFood({ entry, onSave, onDelete }) {
       }}
     >
       <p className="text-[17px] font-semibold">
-        {foodByKey(entry.food_key)?.icon ?? "🍽️"} {entry.name}
+        {foodIcon(entry.food_key)} {entry.name}
       </p>
       <div>
         <span className="label">ארוחה</span>
