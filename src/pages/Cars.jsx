@@ -153,7 +153,7 @@ export default function Cars() {
 }
 
 function CarCard({ car, last }) {
-  const img = useImage(car.photo_path);
+  const img = useImage(car.photo_path, car.photo_url);
   return (
     <li className="card overflow-hidden">
       <Link to={`/cars/${car.id}`} state={{ back: "רכבים" }} className="press block">
@@ -176,7 +176,7 @@ function CarCard({ car, last }) {
 }
 
 function CarDetail({ car, cars, services, onEdit }) {
-  const img = useImage(car.photo_path);
+  const img = useImage(car.photo_path, car.photo_url);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -410,7 +410,7 @@ function CarForm({ car, onSave, onDelete }) {
             fuel: f.fuel.trim() || null,
             test_until: f.test_until || null,
             last_test: f.last_test || null,
-            photo_url: null,
+            photo_url: car.photo_url ?? null,
             notes: f.notes.trim(),
           },
           photo
@@ -450,7 +450,7 @@ function CarForm({ car, onSave, onDelete }) {
       </div>
       {!car.photo_path && !photo.file && (
         <div className="aspect-[16/9] rounded-2xl bg-raised overflow-hidden">
-          <CarArt color={f.color} />
+          {car.photo_url ? <img src={car.photo_url} alt="" className="w-full h-full object-cover" /> : <CarArt color={f.color} />}
         </div>
       )}
       {!isDemoMode && <PhotoField label="צילום של הרכב שלכם" path={photo.remove ? null : car.photo_path} file={photo.file} onChange={setPhoto} />}
