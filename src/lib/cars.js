@@ -29,22 +29,17 @@ export async function lookupPlate(plate) {
     fuel: r.sug_delek_nm ?? null,
     test_until: r.tokef_dt?.slice(0, 10) ?? null,
     last_test: r.mivchan_acharon_dt?.slice(0, 10) ?? null,
-    imageQuery: r.kinuy_mishari ?? null,
   };
 }
 
-// shortcut: תמונה כללית של הדגם (לא בהכרח אותה גרסה/צבע). תמונה שמעלים מחליפה אותה
-export async function modelImage(query) {
-  if (!query) return null;
-  const u = new URL("https://en.wikipedia.org/w/api.php");
-  Object.entries({ action: "query", format: "json", origin: "*", generator: "search", gsrsearch: `${query} car`, gsrlimit: "1", prop: "pageimages", piprop: "thumbnail", pithumbsize: "800" }).forEach(([k, v]) => u.searchParams.set(k, v));
-  try {
-    const pages = Object.values((await (await fetch(u)).json())?.query?.pages ?? {});
-    return pages[0]?.thumbnail?.source ?? null;
-  } catch {
-    return null;
-  }
-}
+// צבע הרכב מהרישוי (טקסט חופשי בעברית) -> צבע לציור. הסדר חשוב: "שנהב לבן" לפני "לבן", "כסף" לפני "אפור"
+const COLORS = [
+  ["שנהב", "#ece4d2"], ["פנינה", "#efece4"], ["לבן", "#f4f4f2"], ["שחור", "#1c1d20"], ["כסף", "#b9bcc1"], ["אפור כהה", "#4a4d52"],
+  ["אפור", "#80848b"], ["תכלת", "#8fc3e8"], ["טורקיז", "#2aa7a5"], ["כחול כהה", "#1f2f5c"], ["כחול", "#2c5fb3"], ["אדום", "#b8202a"],
+  ["בורדו", "#6d1a2a"], ["ירוק", "#2f6b3e"], ["צהוב", "#e8c12a"], ["כתום", "#e0702a"], ["זהב", "#c8a75a"], ["בז", "#cdb994"],
+  ["חום", "#6b4a33"], ["סגול", "#5b3b8c"], ["ברונזה", "#8c6a43"],
+];
+export const carColor = (name) => COLORS.find(([k]) => name?.includes(k))?.[1] ?? "#9aa0a6";
 
 export const SERVICE_KINDS = {
   service: { label: "טיפול תקופתי", emoji: "🔧" },

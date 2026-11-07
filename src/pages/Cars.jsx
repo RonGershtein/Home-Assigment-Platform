@@ -6,7 +6,7 @@ import { BackButton, Page } from "../components/Shell";
 import Sheet from "../components/Sheet";
 import { DeleteButton, Empty, Fab, Field, SectionTitle, Skeletons } from "../components/ui";
 import { useTable } from "../hooks/useTable";
-import { SERVICE_KINDS, fmtPlate, lookupPlate, modelImage, plateDigits, testState } from "../lib/cars";
+import { SERVICE_KINDS, carColor, fmtPlate, lookupPlate, plateDigits, testState } from "../lib/cars";
 import { daysUntil, fmtDate, money, relDays, todayStr, toNumber } from "../lib/format";
 import { imageUrl, removeImage, uploadImage } from "../lib/images";
 import { isDemoMode } from "../lib/supabase";
@@ -27,6 +27,42 @@ function useImage(path, fallback) {
     };
   }, [path, fallback]);
   return url;
+}
+
+// ציור רכב בצבע מהרישוי, כשאין צילום משלכם
+function CarArt({ color }) {
+  const fill = carColor(color);
+  return (
+    <svg viewBox="0 0 320 180" className="w-full h-full" role="img" aria-label={color ? `רכב ב${color}` : "רכב"}>
+      <defs>
+        <linearGradient id="studio" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#e4e6ea" />
+          <stop offset="1" stopColor="#b8bcc3" />
+        </linearGradient>
+        <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.4" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
+          <stop offset="1" stopColor="#000" stopOpacity="0.25" />
+        </linearGradient>
+      </defs>
+      <rect width="320" height="180" fill="url(#studio)" />
+      <ellipse cx="160" cy="150" rx="128" ry="8" fill="#000" opacity="0.28" />
+      <path d="M50 128c-8 0-12-6-12-14l2-10c2-7 8-10 16-12l52-8c12-16 26-28 42-32 20-4 60-5 82-3 16 2 26 9 34 23l10 22c4 8 6 16 6 24 0 6-4 10-10 10z" fill={fill} stroke="#000" strokeOpacity="0.35" strokeWidth="1.5" />
+      <path d="M50 128c-8 0-12-6-12-14l2-10c2-7 8-10 16-12l52-8c12-16 26-28 42-32 20-4 60-5 82-3 16 2 26 9 34 23l10 22c4 8 6 16 6 24 0 6-4 10-10 10z" fill="url(#shine)" />
+      <path d="M114 84c10-14 22-24 38-27l32-2v29z" fill="#1d2733" opacity="0.88" />
+      <path d="M192 55l38-1c14 1 22 8 28 20l4 10h-70z" fill="#1d2733" opacity="0.88" />
+      <path d="M188 55v71" stroke="#000" strokeOpacity="0.25" strokeWidth="1.5" />
+      <path d="M45 100h9" stroke="#f3f0e0" strokeWidth="5" strokeLinecap="round" />
+      <path d="M274 92v8" stroke="#c0262d" strokeWidth="5" strokeLinecap="round" />
+      {[84, 236].map((x) => (
+        <g key={x}>
+          <circle cx={x} cy="128" r="21" fill="#16171a" />
+          <circle cx={x} cy="128" r="12" fill="#a3a9b0" />
+          <circle cx={x} cy="128" r="4" fill="#4b5058" />
+        </g>
+      ))}
+    </svg>
+  );
 }
 
 function Plate({ plate, className = "" }) {
@@ -117,12 +153,12 @@ export default function Cars() {
 }
 
 function CarCard({ car, last }) {
-  const img = useImage(car.photo_path, car.photo_url);
+  const img = useImage(car.photo_path);
   return (
     <li className="card overflow-hidden">
       <Link to={`/cars/${car.id}`} state={{ back: "רכבים" }} className="press block">
         <div className="aspect-[16/9] bg-raised grid place-items-center overflow-hidden">
-          {img ? <img src={img} alt="" className="w-full h-full object-cover" loading="lazy" /> : <Car size={40} className="text-muted" strokeWidth={1.5} />}
+          {img ? <img src={img} alt="" className="w-full h-full object-cover" loading="lazy" /> : <CarArt color={car.color} />}
         </div>
         <div className="p-4">
           <div className="flex items-center justify-between gap-3">
@@ -140,7 +176,7 @@ function CarCard({ car, last }) {
 }
 
 function CarDetail({ car, cars, services, onEdit }) {
-  const img = useImage(car.photo_path, car.photo_url);
+  const img = useImage(car.photo_path);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -187,7 +223,7 @@ function CarDetail({ car, cars, services, onEdit }) {
     <Page title={carName(car)} back={<BackButton fallback={{ to: "/cars", label: "רכבים" }} />} action={<button type="button" className="press text-accent-text text-[16px] font-medium h-10 px-1" onClick={onEdit}>עריכה</button>}>
       <div className="card overflow-hidden">
         <div className="aspect-[16/9] bg-raised grid place-items-center overflow-hidden">
-          {img ? <img src={img} alt="" className="w-full h-full object-cover" /> : <Car size={48} className="text-muted" strokeWidth={1.5} />}
+          {img ? <img src={img} alt="" className="w-full h-full object-cover" /> : <CarArt color={car.color} />}
         </div>
         <div className="p-4 flex items-center justify-between gap-3">
           <p className="text-[14px] text-muted truncate">{[car.year, car.color, car.fuel].filter(Boolean).join(" · ")}</p>
@@ -338,7 +374,6 @@ function CarForm({ car, onSave, onDelete }) {
     fuel: car.fuel || "",
     test_until: car.test_until || "",
     last_test: car.last_test || "",
-    photo_url: car.photo_url || "",
     notes: car.notes || "",
   });
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
@@ -349,9 +384,7 @@ function CarForm({ car, onSave, onDelete }) {
     try {
       const r = await lookupPlate(digits);
       if (!r) return toast.error("לא נמצא ברישוי. אפשר למלא ידנית");
-      const photo_url = await modelImage(r.imageQuery);
-      const { imageQuery, ...fields } = r;
-      setF((p) => ({ ...p, ...Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v ?? ""])), photo_url: photo_url || p.photo_url }));
+      setF((p) => ({ ...p, ...Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v ?? ""])) }));
       toast.success(`${r.make ?? ""} ${r.model ?? ""} ${r.year ?? ""}`.trim());
     } catch {
       toast.error("אין חיבור למאגר הרישוי");
@@ -377,7 +410,7 @@ function CarForm({ car, onSave, onDelete }) {
             fuel: f.fuel.trim() || null,
             test_until: f.test_until || null,
             last_test: f.last_test || null,
-            photo_url: f.photo_url || null,
+            photo_url: null,
             notes: f.notes.trim(),
           },
           photo
@@ -415,10 +448,9 @@ function CarForm({ car, onSave, onDelete }) {
           <input type="date" className="field" value={f.last_test} onChange={set("last_test")} />
         </Field>
       </div>
-      {f.photo_url && !photo.file && !(car.photo_path && !photo.remove) && (
-        <div className="relative">
-          <img src={f.photo_url} alt="" className="w-full aspect-[16/9] object-cover rounded-2xl bg-raised" />
-          <p className="absolute bottom-2 start-2 text-[12px] bg-black/60 text-white rounded-full px-2.5 py-1">תמונה כללית של הדגם · אפשר להחליף בצילום שלכם</p>
+      {!car.photo_path && !photo.file && (
+        <div className="aspect-[16/9] rounded-2xl bg-raised overflow-hidden">
+          <CarArt color={f.color} />
         </div>
       )}
       {!isDemoMode && <PhotoField label="צילום של הרכב שלכם" path={photo.remove ? null : car.photo_path} file={photo.file} onChange={setPhoto} />}
