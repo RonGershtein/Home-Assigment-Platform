@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChefHat, Gift, Landmark, ListChecks, Receipt, Scale, ShoppingCart, Ticket } from "lucide-react";
+import { Bell, ChefHat, Gift, Landmark, ListChecks, Receipt, Scale, ShoppingCart, Ticket } from "lucide-react";
 
 // כל המדורים שאפשר לשים בסרגל התחתון (בית ו"עוד" קבועים). הבחירה נשמרת במכשיר.
 export const SECTIONS = {
@@ -11,8 +11,9 @@ export const SECTIONS = {
   vouchers: { to: "/vouchers", label: "שוברים", icon: Ticket, hint: "לפי תוקף, קודים ואתרים" },
   gifts: { to: "/gifts", label: "מתנות", icon: Gift, hint: "מה קיבלנו בחתונה ומה נתנו באירועים" },
   recipes: { to: "/recipes", label: "מתכונים", icon: ChefHat, hint: "לינקים ומה אהבנו" },
+  notifications: { to: "/notifications", label: "התראות", icon: Bell, hint: "מה נשלח, מתי, ומה כבוי" },
 };
-export const SECTION_ORDER = ["shopping", "tasks", "money", "budget", "nutrition", "vouchers", "gifts", "recipes"];
+export const SECTION_ORDER = ["shopping", "tasks", "money", "budget", "nutrition", "vouchers", "gifts", "recipes", "notifications"];
 export const DEFAULT_TABS = ["shopping", "tasks", "money"];
 
 const KEY = "homesync:tabs";

@@ -9,19 +9,16 @@ import { Page } from "../components/Shell";
 import ThemeToggle from "../components/ThemeToggle";
 import { CheckCircle, SectionTitle, useLeaving } from "../components/ui";
 import { useTable } from "../hooks/useTable";
-import { LONG_TERM_KINDS, shopCat } from "../lib/catalog";
+import { shopCat } from "../lib/catalog";
 import { matchGrocery } from "../lib/groceries";
-import { compactMoney, daysUntil, greeting, money, monthKey, monthLabel, relDays, todayStr } from "../lib/format";
+import { daysUntil, greeting, money, relDays, todayStr } from "../lib/format";
 
 const BACK = { back: "בית" };
-const sum = (rows) => rows.reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
 export default function Home({ user }) {
   const shopping = useTable("shopping_items");
   const tasks = useTable("tasks");
   const vouchers = useTable("vouchers");
-  const tx = useTable("transactions");
-  const accounts = useTable("accounts");
   const weights = useTable("weight_entries");
   const nutrition = useTable("nutrition_profiles");
   const me = user?.id ?? "demo";
@@ -62,49 +59,11 @@ export default function Home({ user }) {
     [vouchers.rows]
   );
 
-  const month = monthKey(new Date());
-  const monthTx = tx.rows.filter((t) => t.date?.startsWith(month));
-  const out = sum(monthTx.filter((t) => t.kind === "expense"));
-  const inc = sum(monthTx.filter((t) => t.kind === "income"));
-  const liquid = accounts.rows.filter((a) => !a.archived && !LONG_TERM_KINDS.has(a.kind)).reduce((s, a) => s + (Number(a.balance) || 0), 0);
-  const spentShare = inc ? Math.min(1, out / inc) : out ? 1 : 0;
-
   const date = new Intl.DateTimeFormat("he-IL", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   return (
     <Page title={greeting()} subtitle={date} action={<ThemeToggle />}>
       {!nutritionHidden && <WeightPrompt me={me} weights={weights} profile={myNutrition} goalHint={goalHint} loading={weights.loading || nutrition.loading} />}
-      <Link to="/budget" state={BACK} className="press hero block p-5 rise">
-        <div className="flex items-center justify-between text-[13px] text-muted">
-          <span>{inc ? "נשאר החודש" : "הוצאות החודש"}</span>
-          <span>{monthLabel(month)}</span>
-        </div>
-        {tx.loading ? (
-          <div className="skeleton h-[52px] w-48 mt-2 !rounded-xl" />
-        ) : (
-          <p className={`num text-[52px] leading-[1.05] font-bold tracking-[-0.03em] mt-1 ${inc && inc - out < 0 ? "text-crit" : ""}`}>
-            {money(Math.round(inc ? inc - out : out))}
-          </p>
-        )}
-        <div className="h-2 rounded-full bg-raised mt-4 overflow-hidden" aria-hidden="true">
-          <div className={`bar h-full rounded-full ${spentShare > 0.9 ? "bg-crit" : "bg-accent"}`} style={{ width: `${Math.max(2, spentShare * 100)}%` }} />
-        </div>
-        <div className="flex justify-between mt-3 text-[13px]">
-          <span className="text-muted">
-            הוצאו <span className="num text-fg font-medium">{money(Math.round(out))}</span>
-            {inc > 0 && (
-              <>
-                {" "}
-                מתוך <span className="num text-fg font-medium">{money(Math.round(inc))}</span>
-              </>
-            )}
-          </span>
-          <span className="text-muted">
-            נזיל <span className="num text-fg font-medium">{accounts.loading ? "…" : compactMoney(liquid)}</span>
-          </span>
-        </div>
-      </Link>
-
       <SectionTitle right={<SeeAll to="/shopping" label={toBuy.length ? `${toBuy.length} פריטים` : null} />}>לקנות</SectionTitle>
       <Link to="/shopping" className="press card block p-4">
         {shopping.loading ? (

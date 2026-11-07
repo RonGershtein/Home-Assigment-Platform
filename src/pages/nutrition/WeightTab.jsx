@@ -304,7 +304,7 @@ export default function WeightTab({ me, myName, nameOf, weights, myProfile, prof
         <>
           <SectionTitle>תזכורות ושיתוף</SectionTitle>
           <div className="card divide-y overflow-hidden">
-            <ReminderToggle prefKey="weight" label="תזכורת שקילה כל בוקר" hint="התראה אם עוד לא נרשם משקל להיום" />
+            <ReminderToggle prefKey="weight" label="תזכורת שקילה יומית" hint="אם עוד לא נרשם משקל להיום. השעה נקבעת במסך ההתראות" />
             <ToggleRow icon={<HousePlus size={19} />} label="שאלת המשקל במסך הבית" hint="כל יום, עד שרושמים" on={myProfile?.daily_prompt !== false} onChange={(v) => saveProfile({ daily_prompt: v })} />
             <ToggleRow
               icon={myProfile?.share === false ? <Eye size={19} /> : <Users size={19} />}

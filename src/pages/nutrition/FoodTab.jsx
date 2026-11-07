@@ -213,7 +213,7 @@ export default function FoodTab({ me, myName, nameOf, foods, weights, myProfile,
         <>
           <SectionTitle>תזכורות</SectionTitle>
           <div className="card overflow-hidden">
-            <ReminderToggle prefKey="food" label="סיכום ערב ליומן האוכל" hint="כמה נשאר להיום, או תזכורת אם לא נרשם כלום" icon={<UtensilsCrossed size={19} />} />
+            <ReminderToggle prefKey="food" label="סיכום ערב ליומן האוכל" hint="כמה נשאר להיום. השעה נקבעת במסך ההתראות" icon={<UtensilsCrossed size={19} />} />
           </div>
         </>
       )}

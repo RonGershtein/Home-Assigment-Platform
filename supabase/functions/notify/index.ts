@@ -1,6 +1,6 @@
 // שליחת התראות push לאייפון (Web Push).
-// daily    - כל בוקר: שוברים שפגים (7 ימים / מחר / היום), מטלות להיום ולמחר, ותזכורת שקילה למי שעוד לא נשקל
-// evening  - כל ערב: יומן אוכל - כמה נשאר להיום, או תזכורת אם לא נרשם כלום
+// daily    - כל בוקר: שוברים שפגים (7 ימים / מחר / היום), מטלות להיום ולמחר
+// evening  - כל רבע שעה: תזכורת שקילה וסיכום יומן אוכל, כל מכשיר בשעה שבחר (prefs.weight_time / prefs.food_time)
 // shopping - כל כמה דקות: פריטים שנוספו לרשימה, רק לבן/בת הזוג השני/ה
 // test     - מהאפליקציה: התראת בדיקה למכשירים של מי שלחץ
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -8,7 +8,7 @@ import webpush from "npm:web-push@3.6.7";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
-type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string; prefs: Record<string, boolean> };
+type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string; prefs: Record<string, boolean | string> };
 type Msg = { title: string; body: string; url: string; tag: string };
 
 const cors = {
@@ -22,6 +22,11 @@ function israelDay(offset = 0) {
   const d = new Date(Date.now() + offset * 86_400_000);
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(d);
 }
+
+// השעה בישראל כ-"HH:MM", ופילטר "הגיעה השעה שנבחרה" (>= כדי שטיק שפוספס עדיין ישלח; notify_log מונע כפילות)
+const israelTime = () => new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
+const DEFAULT_TIMES = { weight_time: "08:00", food_time: "20:00" };
+const due = (s: Sub, key: keyof typeof DEFAULT_TIMES, now: string) => String(s.prefs?.[key] ?? DEFAULT_TIMES[key]) <= now;
 
 const ils = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 });
 
@@ -93,7 +98,9 @@ async function daily(subs: Sub[]) {
 // לכל משתמש עם מנוי: תזכורת שקילה אם אין רשומה להיום (העדפה "weight")
 async function weight(subs: Sub[]) {
   const today = israelDay(0);
-  const users = [...new Set(subs.filter((s) => s.prefs?.weight !== false).map((s) => s.user_id))];
+  const now = israelTime();
+  subs = subs.filter((s) => s.prefs?.weight !== false && due(s, "weight_time", now));
+  const users = [...new Set(subs.map((s) => s.user_id))];
   if (!users.length) return 0;
   const { data: todays } = await db.from("weight_entries").select("user_id").eq("day", today).in("user_id", users);
   const done = new Set((todays ?? []).map((r) => r.user_id));
@@ -136,12 +143,14 @@ function targetFor(p: Record<string, unknown> | null, weight: number | null): nu
 // סיכום ערב ליומן האוכל (העדפה "food")
 async function evening(subs: Sub[]) {
   const today = israelDay(0);
-  const users = [...new Set(subs.filter((s) => s.prefs?.food !== false).map((s) => s.user_id))];
-  if (!users.length) return 0;
+  const now = israelTime();
+  const foodSubs = subs.filter((s) => s.prefs?.food !== false && due(s, "food_time", now));
+  const users = [...new Set(foodSubs.map((s) => s.user_id))];
+  let total = await weight(subs);
+  if (!users.length) return total;
   const keys = new Set(await fresh(users.map((u) => `food:${u}:${today}`)));
   const { data: entries } = await db.from("food_entries").select("user_id,kcal").eq("day", today).in("user_id", users);
   const { data: profiles } = await db.from("nutrition_profiles").select("*").in("user_id", users);
-  let total = 0;
   for (const u of users) {
     if (!keys.has(`food:${u}:${today}`)) continue;
     const mine = (entries ?? []).filter((e) => e.user_id === u);
@@ -159,10 +168,9 @@ async function evening(subs: Sub[]) {
     else if (target == null) msg = { title: `עד עכשיו: ${n(eaten)} קק״ל`, body: "נותר לרשום את ארוחת הערב? נגיעה ליומן.", url: "/nutrition?tab=food", tag: "food" };
     else if (eaten <= target) msg = { title: `נותרו ${n(target - eaten)} קק״ל להיום`, body: `נאכלו ${n(eaten)} מתוך ${n(target)}. ארוחת ערב קלה ואתם ביעד 💪`, url: "/nutrition?tab=food", tag: "food" };
     else msg = { title: `${n(eaten - target)} קק״ל מעל היעד היום`, body: "קורה. מה שקובע זה הממוצע השבועי - מחר יום חדש.", url: "/nutrition?tab=food", tag: "food" };
-    total += await send(subs.filter((s) => s.user_id === u && s.prefs?.food !== false), msg);
+    total += await send(foodSubs.filter((s) => s.user_id === u), msg);
   }
   await mark([...keys]);
-  total += await weight(subs);
   return total;
 }
 
@@ -214,7 +222,7 @@ Deno.serve(async (req) => {
       const { data: who } = await db.auth.getUser(token);
       if (!who?.user) return json({ error: "unauthorized" }, 401);
       const { data: subs } = await db.from("push_subscriptions").select("*").eq("user_id", who.user.id);
-      const sent = await send((subs ?? []) as Sub[], { title: "ההתראות עובדות", body: "כאן יופיעו שוברים שפגים, מטלות, פריטים חדשים בקניות, תזכורת שקילה וסיכום יומן האוכל.", url: "/more", tag: "test" });
+      const sent = await send((subs ?? []) as Sub[], { title: "ההתראות עובדות", body: "כאן יופיעו שוברים שפגים, מטלות, פריטים חדשים בקניות, תזכורת שקילה וסיכום יומן האוכל.", url: "/notifications", tag: "test" });
       return json({ sent });
     }
 

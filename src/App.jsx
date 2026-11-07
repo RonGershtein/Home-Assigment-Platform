@@ -17,6 +17,7 @@ const Gifts = lazy(() => import("./pages/Gifts"));
 const Recipes = lazy(() => import("./pages/Recipes"));
 const More = lazy(() => import("./pages/More"));
 const Nutrition = lazy(() => import("./pages/Nutrition"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 
 function ScrollTop() {
   const { pathname } = useLocation();
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/gifts" element={<Gifts />} />
           <Route path="/recipes" element={<Recipes />} />
           <Route path="/nutrition" element={<Nutrition user={session.user} />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/more" element={<More user={session.user} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

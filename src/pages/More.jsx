@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ChevronLeft, LogOut, RotateCcw } from "lucide-react";
 import { Page } from "../components/Shell";
 import ThemeToggle from "../components/ThemeToggle";
-import { NotificationSettings, NutritionVisibility, ProfileName, TabBarSettings } from "../components/Settings";
+import { NutritionVisibility, ProfileName, TabBarSettings } from "../components/Settings";
 import { SectionTitle } from "../components/ui";
 import { signOut } from "../lib/auth";
 import { resetDemo } from "../lib/localBackend";
@@ -40,8 +40,6 @@ export default function More({ user }) {
         <TabBarSettings />
         <NutritionVisibility user={user} />
       </div>
-
-      {!isDemoMode && <NotificationSettings />}
 
       <SectionTitle>חשבון</SectionTitle>
       <div className="card divide-y overflow-hidden">

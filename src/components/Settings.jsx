@@ -6,14 +6,17 @@ import { table } from "../lib/db";
 import { currentSubscription, disablePush, enablePush, isIOS, isStandalone, loadPrefs, pushSupported, savePrefs, sendTest } from "../lib/push";
 import { useNutritionHidden } from "../lib/nutritionVisibility";
 import { DEFAULT_TABS, SECTIONS, SECTION_ORDER, useTabs } from "../lib/sections";
-import { SectionTitle, Switch } from "./ui";
+import { Switch } from "./ui";
+
+// שעות ברירת מחדל, כמו DEFAULT_TIMES ב-supabase/functions/notify
+const DEFAULT_TIMES = { weight_time: "08:00", food_time: "20:00" };
 
 const KINDS = [
   { key: "vouchers", label: "שוברים שפגים", hint: "שבוע לפני, יום לפני וביום עצמו" },
   { key: "tasks", label: "מטלות", hint: "ביום היעד וביום שלפניו, ב-9 בבוקר" },
   { key: "shopping", label: "קניות", hint: "כשמישהו אחר מוסיף פריטים לרשימה" },
-  { key: "weight", label: "שקילה יומית", hint: "כל בוקר, אם עוד לא נרשם משקל להיום" },
-  { key: "food", label: "יומן אוכל", hint: "בערב: כמה נשאר להיום, או תזכורת אם לא נרשם כלום" },
+  { key: "weight", label: "שקילה יומית", hint: "אם עוד לא נרשם משקל להיום", time: "weight_time" },
+  { key: "food", label: "יומן אוכל", hint: "כמה נשאר להיום, או תזכורת אם לא נרשם כלום", time: "food_time" },
 ];
 const DEFAULT_PREFS = { vouchers: true, tasks: true, shopping: true, weight: true, food: true };
 
@@ -47,9 +50,17 @@ export function NotificationSettings() {
     }
   };
 
+  const save = (next) => {
+    const prev = prefs;
+    setPrefs(next);
+    savePrefs(next).catch(() => {
+      setPrefs(prev);
+      toast.error("לא נשמר");
+    });
+  };
+
   return (
     <>
-      <SectionTitle>התראות</SectionTitle>
       <div className="card overflow-hidden">
         {state === "loading" && <div className="skeleton h-16 !rounded-none" />}
 
@@ -102,26 +113,32 @@ export function NotificationSettings() {
 
         {state === "on" && prefs && (
           <div className="divide-y">
-            {kinds.map((k) => (
-              <div key={k.key} className="flex items-center gap-3 px-4 min-h-[64px]">
-                <p className="flex-1 text-[15px]">
-                  <span className="block font-medium">{k.label}</span>
-                  <span className="block text-[13px] text-muted">{k.hint}</span>
-                </p>
-                <Switch
-                  on={prefs[k.key] !== false}
-                  label={k.label}
-                  onChange={(v) => {
-                    const next = { ...prefs, [k.key]: v };
-                    setPrefs(next);
-                    savePrefs(next).catch(() => {
-                      setPrefs(prefs);
-                      toast.error("לא נשמר");
-                    });
-                  }}
-                />
-              </div>
-            ))}
+            {kinds.map((k) => {
+              const on = prefs[k.key] !== false;
+              return (
+                <div key={k.key} className="px-4 py-3">
+                  <div className="flex items-center gap-3 min-h-[40px]">
+                    <p className="flex-1 text-[15px]">
+                      <span className="block font-medium">{k.label}</span>
+                      <span className="block text-[13px] text-muted">{k.hint}</span>
+                    </p>
+                    <Switch on={on} label={k.label} onChange={(v) => save({ ...prefs, [k.key]: v })} />
+                  </div>
+                  {k.time && on && (
+                    <label className="flex items-center justify-between gap-3 mt-2 h-11 px-3 rounded-xl bg-raised text-[14px]">
+                      <span className="text-muted">שעת ההתראה</span>
+                      <input
+                        type="time"
+                        className="bare bg-transparent outline-none num text-[16px] font-medium text-end"
+                        value={prefs[k.time] ?? DEFAULT_TIMES[k.time]}
+                        onChange={(e) => e.target.value && save({ ...prefs, [k.time]: e.target.value })}
+                        aria-label={`שעת ההתראה: ${k.label}`}
+                      />
+                    </label>
+                  )}
+                </div>
+              );
+            })}
             <div className="flex gap-2 p-3">
               <button type="button" className="btn btn-soft flex-1 h-11" disabled={busy} onClick={() => run(async () => (await sendTest(), toast.success("נשלחה התראת בדיקה")))}>
                 {busy ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />} התראת בדיקה
