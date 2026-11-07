@@ -1,4 +1,4 @@
-// תמונות שוברים: כיווץ במכשיר (תמונת אייפון של 4MB -> כ-300KB) והעלאה לבאקט פרטי
+// תמונות (שוברים, רכבים): כיווץ במכשיר (תמונת אייפון של 4MB -> כ-300KB) והעלאה לבאקט פרטי
 import { supabase } from "./supabase";
 
 const BUCKET = "vouchers";
@@ -14,16 +14,17 @@ export async function compressImage(file, max = 1600, quality = 0.85) {
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b ?? file), "image/jpeg", quality));
 }
 
-export async function uploadVoucherImage(voucherId, file) {
+export async function uploadImage(prefix, file) {
   const blob = await compressImage(file);
-  const path = `${voucherId}/${Date.now()}.jpg`;
+  const path = `${prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.jpg`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false });
   if (error) throw error;
   return path;
 }
 
-export async function removeVoucherImage(path) {
-  if (path) await supabase.storage.from(BUCKET).remove([path]);
+export async function removeImage(path) {
+  const paths = [path].flat().filter(Boolean);
+  if (paths.length) await supabase.storage.from(BUCKET).remove(paths);
 }
 
 const urls = new Map();

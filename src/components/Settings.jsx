@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, BellOff, ListChecks, Loader2, RotateCcw, Scale, Send, Share, ShoppingCart, SquarePlus, Ticket, UtensilsCrossed } from "lucide-react";
+import { Bell, BellOff, Car, ListChecks, Loader2, RotateCcw, Scale, Send, Share, ShoppingCart, SquarePlus, Ticket, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 import { isDemoMode, supabase } from "../lib/supabase";
 import { table } from "../lib/db";
@@ -13,12 +13,13 @@ const DEFAULT_TIMES = { weight_time: "08:00", food_time: "20:00" };
 
 const KINDS = [
   { key: "vouchers", label: "שוברים שפגים", hint: "בבוקר: שבוע לפני, יום לפני וביום עצמו", icon: Ticket },
+  { key: "cars", label: "טסט לרכב", hint: "בבוקר: חודש לפני, שבוע לפני ויום לפני", icon: Car },
   { key: "tasks", label: "מטלות", hint: "בבוקר: ביום היעד וביום שלפניו", icon: ListChecks },
   { key: "shopping", label: "קניות", hint: "כשמישהו אחר מוסיף פריטים לרשימה", icon: ShoppingCart },
   { key: "weight", label: "שקילה יומית", hint: "אם עוד לא נרשם משקל להיום", time: "weight_time", icon: Scale },
   { key: "food", label: "יומן אוכל", hint: "כמה נשאר להיום, או תזכורת אם לא נרשם כלום", time: "food_time", icon: UtensilsCrossed },
 ];
-const DEFAULT_PREFS = { vouchers: true, tasks: true, shopping: true, weight: true, food: true };
+const DEFAULT_PREFS = { vouchers: true, cars: true, tasks: true, shopping: true, weight: true, food: true };
 
 export function NotificationSettings() {
   const [state, setState] = useState("loading"); // loading | install | unsupported | off | on | denied

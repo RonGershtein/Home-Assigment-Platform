@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Camera, CheckCheck, ExternalLink, Hourglass, ImageIcon, Plus, ScanBarcode, Ticket, Trash2 } from "lucide-react";
 import { VoucherShow } from "../components/VoucherShow";
-import { imageUrl, removeVoucherImage, uploadVoucherImage } from "../lib/images";
+import { imageUrl, removeImage, uploadImage } from "../lib/images";
 import { isDemoMode } from "../lib/supabase";
 import { toast } from "sonner";
 import { BackButton, Page } from "../components/Shell";
@@ -125,9 +125,9 @@ export default function Vouchers() {
               const id = prev.id ?? row?.id;
               if (!id || (!photo.file && !photo.remove)) return;
               try {
-                const image_path = photo.file ? await uploadVoucherImage(id, photo.file) : null;
+                const image_path = photo.file ? await uploadImage(id, photo.file) : null;
                 await vouchers.update(id, { image_path });
-                removeVoucherImage(prev.image_path).catch(() => {});
+                removeImage(prev.image_path).catch(() => {});
               } catch {
                 toast.error("התמונה לא הועלתה");
               }
@@ -138,7 +138,7 @@ export default function Vouchers() {
                 const v = editing;
                 setEditing(null);
                 await vouchers.remove(v.id);
-                removeVoucherImage(v.image_path).catch(() => {});
+                removeImage(v.image_path).catch(() => {});
               })
             }
           />
@@ -305,7 +305,7 @@ function VoucherForm({ v, onSave, onDelete }) {
   );
 }
 
-function PhotoField({ path, file, onChange }) {
+export function PhotoField({ path, file, onChange, label = "תמונת השובר" }) {
   const [url, setUrl] = useState(null);
   useEffect(() => {
     if (file) {
@@ -322,7 +322,7 @@ function PhotoField({ path, file, onChange }) {
 
   return (
     <div>
-      <span className="label">תמונת השובר</span>
+      <span className="label">{label}</span>
       {url ? (
         <div className="relative">
           <img src={url} alt="" className="w-full max-h-64 object-contain rounded-2xl bg-raised" />

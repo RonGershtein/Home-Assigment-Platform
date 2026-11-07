@@ -1,5 +1,5 @@
 // שליחת התראות push לאייפון (Web Push).
-// daily    - כל בוקר: שוברים שפגים (7 ימים / מחר / היום), מטלות להיום ולמחר
+// daily    - כל בוקר: שוברים שפגים (7 ימים / מחר / היום), טסט לרכב (30 / 7 / 1 ימים), מטלות להיום ולמחר
 // evening  - כל רבע שעה: תזכורת שקילה וסיכום יומן אוכל, כל מכשיר בשעה שבחר (prefs.weight_time / prefs.food_time)
 // shopping - כל כמה דקות: פריטים שנוספו לרשימה, רק לבן/בת הזוג השני/ה
 // test     - מהאפליקציה: התראת בדיקה למכשירים של מי שלחץ
@@ -80,6 +80,20 @@ async function daily(subs: Sub[]) {
         : { title: `${vDue.length} שוברים פגים בקרוב`, body: vDue.map(line).join("\n"), url: "/vouchers", tag: "vouchers" };
     total += await send(subs.filter((s) => s.prefs?.vouchers !== false), msg);
     await mark(vDue.map((v) => `voucher:${v.id}:${offsets[v.expiry_date]}`));
+  }
+
+  // טסט לרכב: חודש, שבוע ויום לפני
+  const carOffsets = { [israelDay(30)]: 30, [israelDay(7)]: 7, [israelDay(1)]: 1 } as Record<string, number>;
+  const { data: cars } = await db.from("cars").select("id,plate,nickname,make,model,test_until").in("test_until", Object.keys(carOffsets));
+  const cKey = (c: { id: string; test_until: string }) => `cartest:${c.id}:${c.test_until}:${carOffsets[c.test_until]}`;
+  const cNew = new Set(await fresh((cars ?? []).map(cKey)));
+  const cDue = (cars ?? []).filter((c) => cNew.has(cKey(c)));
+  if (cDue.length) {
+    const when = (d: number) => (d === 1 ? "מחר" : d === 7 ? "בעוד שבוע" : "בעוד חודש");
+    const name = (c: (typeof cDue)[number]) => c.nickname || [c.make, c.model].filter(Boolean).join(" ") || c.plate;
+    const body = cDue.map((c) => `${name(c)} - הטסט פג ${when(carOffsets[c.test_until])} (${c.test_until.split("-").reverse().join("/")})`).join("\n");
+    total += await send(subs.filter((s) => s.prefs?.cars !== false), { title: cDue.length === 1 ? `טסט לרכב ${when(carOffsets[cDue[0].test_until])} 🚗` : `${cDue.length} רכבים צריכים טסט`, body, url: "/cars", tag: "cars" });
+    await mark(cDue.map(cKey));
   }
 
   const { data: tasks } = await db.from("tasks").select("id,title,due_date").eq("is_done", false).in("due_date", [today, israelDay(1)]);
@@ -222,7 +236,7 @@ Deno.serve(async (req) => {
       const { data: who } = await db.auth.getUser(token);
       if (!who?.user) return json({ error: "unauthorized" }, 401);
       const { data: subs } = await db.from("push_subscriptions").select("*").eq("user_id", who.user.id);
-      const sent = await send((subs ?? []) as Sub[], { title: "ההתראות עובדות", body: "כאן יופיעו שוברים שפגים, מטלות, פריטים חדשים בקניות, תזכורת שקילה וסיכום יומן האוכל.", url: "/notifications", tag: "test" });
+      const sent = await send((subs ?? []) as Sub[], { title: "ההתראות עובדות", body: "כאן יופיעו שוברים שפגים, טסט לרכב, מטלות, פריטים חדשים בקניות, תזכורת שקילה וסיכום יומן האוכל.", url: "/notifications", tag: "test" });
       return json({ sent });
     }
 
