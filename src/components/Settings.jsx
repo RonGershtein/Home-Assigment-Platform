@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, BellOff, Loader2, RotateCcw, Scale, Send, Share, SquarePlus } from "lucide-react";
+import { Bell, BellOff, ListChecks, Loader2, RotateCcw, Scale, Send, Share, ShoppingCart, SquarePlus, Ticket, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 import { isDemoMode, supabase } from "../lib/supabase";
 import { table } from "../lib/db";
@@ -12,11 +12,11 @@ import { Switch } from "./ui";
 const DEFAULT_TIMES = { weight_time: "08:00", food_time: "20:00" };
 
 const KINDS = [
-  { key: "vouchers", label: "שוברים שפגים", hint: "שבוע לפני, יום לפני וביום עצמו" },
-  { key: "tasks", label: "מטלות", hint: "ביום היעד וביום שלפניו, ב-9 בבוקר" },
-  { key: "shopping", label: "קניות", hint: "כשמישהו אחר מוסיף פריטים לרשימה" },
-  { key: "weight", label: "שקילה יומית", hint: "אם עוד לא נרשם משקל להיום", time: "weight_time" },
-  { key: "food", label: "יומן אוכל", hint: "כמה נשאר להיום, או תזכורת אם לא נרשם כלום", time: "food_time" },
+  { key: "vouchers", label: "שוברים שפגים", hint: "בבוקר: שבוע לפני, יום לפני וביום עצמו", icon: Ticket },
+  { key: "tasks", label: "מטלות", hint: "בבוקר: ביום היעד וביום שלפניו", icon: ListChecks },
+  { key: "shopping", label: "קניות", hint: "כשמישהו אחר מוסיף פריטים לרשימה", icon: ShoppingCart },
+  { key: "weight", label: "שקילה יומית", hint: "אם עוד לא נרשם משקל להיום", time: "weight_time", icon: Scale },
+  { key: "food", label: "יומן אוכל", hint: "כמה נשאר להיום, או תזכורת אם לא נרשם כלום", time: "food_time", icon: UtensilsCrossed },
 ];
 const DEFAULT_PREFS = { vouchers: true, tasks: true, shopping: true, weight: true, food: true };
 
@@ -118,6 +118,9 @@ export function NotificationSettings() {
               return (
                 <div key={k.key} className="px-4 py-3">
                   <div className="flex items-center gap-3 min-h-[40px]">
+                    <span className={`grid place-items-center w-10 h-10 rounded-full shrink-0 transition-colors duration-200 ${on ? "bg-accent/15 text-accent-text" : "bg-raised text-muted"}`}>
+                      <k.icon size={19} />
+                    </span>
                     <p className="flex-1 text-[15px]">
                       <span className="block font-medium">{k.label}</span>
                       <span className="block text-[13px] text-muted">{k.hint}</span>
@@ -125,7 +128,7 @@ export function NotificationSettings() {
                     <Switch on={on} label={k.label} onChange={(v) => save({ ...prefs, [k.key]: v })} />
                   </div>
                   {k.time && on && (
-                    <label className="flex items-center justify-between gap-3 mt-2 h-11 px-3 rounded-xl bg-raised text-[14px]">
+                    <label className="enter flex items-center justify-between gap-3 mt-2 ms-[52px] h-11 px-3 rounded-xl bg-raised text-[14px]">
                       <span className="text-muted">שעת ההתראה</span>
                       <input
                         type="time"

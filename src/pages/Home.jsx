@@ -64,7 +64,7 @@ export default function Home({ user }) {
   return (
     <Page title={greeting()} subtitle={date} action={<ThemeToggle />}>
       {!nutritionHidden && <WeightPrompt me={me} weights={weights} profile={myNutrition} goalHint={goalHint} loading={weights.loading || nutrition.loading} />}
-      <SectionTitle right={<SeeAll to="/shopping" label={toBuy.length ? `${toBuy.length} פריטים` : null} />}>לקנות</SectionTitle>
+      <SectionTitle className="!mt-0" right={<SeeAll to="/shopping" label={toBuy.length ? `${toBuy.length} פריטים` : null} />}>לקנות</SectionTitle>
       <Link to="/shopping" className="press card block p-4">
         {shopping.loading ? (
           <div className="skeleton h-10 !rounded-xl" />
